@@ -1,6 +1,6 @@
-// client/src/components/PriceTrendChartInteractive.tsx
-// Interactive Price Trend Chart with 45-day calendar and clickable data points
-// ✅ CONFIGURED FOR PORT 8001 (Docker setup)
+// FILE: client/src/components/PriceTrendChartInteractive.tsx
+// REPLACE YOUR EXISTING PriceTrendChartInteractive.tsx WITH THIS FILE
+// OR rename your old one to PriceTrendChartInteractive.tsx.backup first
 
 import { useState } from "react";
 import { Card } from "@/components/ui/card";
@@ -53,7 +53,7 @@ export default function PriceTrendChartInteractive({
     setError(null);
     
     try {
-      // ✅ UPDATED FOR PORT 8001 (Docker)
+      // ✅ Configured for Docker port 8001
       const response = await fetch('http://localhost:8001/api/flights/price-calendar', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -85,7 +85,7 @@ export default function PriceTrendChartInteractive({
     setLoadingFlights(true);
     
     try {
-      // ✅ UPDATED FOR PORT 8001 (Docker)
+      // ✅ Configured for Docker port 8001
       const response = await fetch('http://localhost:8001/api/flights/validate-date', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
