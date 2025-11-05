@@ -1,8 +1,9 @@
 // FILE: client/src/components/PriceTrendChartInteractive.tsx
-// REPLACE YOUR EXISTING PriceTrendChartInteractive.tsx WITH THIS FILE
-// OR rename your old one to PriceTrendChartInteractive.tsx.backup first
+// ✅ FOR SINGLE DOCKER CONTAINER (Frontend + Backend together)
+// ✅ AUTO-LOADS: No button - loads automatically on every search
+// ✅ RELATIVE URLs: Works in same container
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -47,18 +48,30 @@ export default function PriceTrendChartInteractive({
   const [stats, setStats] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // ✅ AUTO-LOAD: Fetch price calendar when component mounts or params change
+  useEffect(() => {
+    if (origin && destination) {
+      console.log('🔄 Auto-loading price calendar for:', origin, '→', destination);
+      fetchPriceCalendar();
+    }
+  }, [origin, destination, passengers]);
+
   // Fetch price calendar data
   const fetchPriceCalendar = async () => {
     setLoading(true);
     setError(null);
     
     try {
-      // ✅ Configured for Docker port 8001
-      const response = await fetch('http://localhost:8001/api/flights/price-calendar', {
+      console.log('📡 Fetching price calendar from /api/flights/price-calendar');
+      
+      // ✅ RELATIVE URL: Works in single Docker container
+      const response = await fetch('/api/flights/price-calendar', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ origin, destination, passengers })
       });
+
+      console.log('📊 Response status:', response.status);
 
       const data = await response.json();
 
@@ -66,11 +79,12 @@ export default function PriceTrendChartInteractive({
         throw new Error(data.message || 'Failed to fetch price data');
       }
 
+      console.log('✅ Price calendar loaded:', data.priceData.length, 'data points');
       setPriceData(data.priceData);
       setStats(data.stats);
       
     } catch (err: any) {
-      console.error('Price calendar error:', err);
+      console.error('❌ Price calendar error:', err);
       setError(err.message || 'Failed to load price calendar');
     } finally {
       setLoading(false);
@@ -81,12 +95,13 @@ export default function PriceTrendChartInteractive({
   const handleDataPointClick = async (dataPoint: any) => {
     if (!dataPoint || !dataPoint.date) return;
     
+    console.log('🖱️ Clicked date:', dataPoint.date);
     setSelectedDate(dataPoint.date);
     setLoadingFlights(true);
     
     try {
-      // ✅ Configured for Docker port 8001
-      const response = await fetch('http://localhost:8001/api/flights/validate-date', {
+      // ✅ RELATIVE URL
+      const response = await fetch('/api/flights/validate-date', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -103,11 +118,12 @@ export default function PriceTrendChartInteractive({
         throw new Error(data.message || 'Failed to fetch flights');
       }
 
+      console.log('✅ Flights loaded for', dataPoint.date, ':', data.flights.length, 'flights');
       setSelectedFlights(data.flights || []);
       onDateSelect?.(dataPoint.date, data.flights[0]);
       
     } catch (err: any) {
-      console.error('Flight fetch error:', err);
+      console.error('❌ Flight fetch error:', err);
       setSelectedFlights([]);
     } finally {
       setLoadingFlights(false);
@@ -206,12 +222,6 @@ export default function PriceTrendChartInteractive({
               {origin} → {destination} • Click any point to see flights
             </p>
           </div>
-          
-          {!loading && priceData.length === 0 && (
-            <Button onClick={fetchPriceCalendar}>
-              Load Price Calendar
-            </Button>
-          )}
         </div>
 
         {/* Statistics */}
