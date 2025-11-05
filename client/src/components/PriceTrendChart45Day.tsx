@@ -1,4 +1,4 @@
-/ FILE: client/src/components/PriceTrendChart45Day.tsx
+// FILE: client/src/components/PriceTrendChart45Day.tsx
 // OPTIMIZED VERSION
 // ✅ Faster loading (30s instead of 90s)
 // ✅ Instant flight card on click with "Book Now" button
@@ -92,7 +92,7 @@ export default function PriceTrendChart45Day({
     }
   };
 
-  // ✅ Handle click on data point - Show flight card immediately
+  // Handle click on data point - Show flight card immediately
   const handleDataPointClick = (dataPoint: any) => {
     if (!dataPoint || !dataPoint.flightData) {
       console.log('No flight data for this date');
@@ -405,7 +405,7 @@ export default function PriceTrendChart45Day({
         </Card>
       )}
 
-      {/* ✅ FLIGHT CARD - Appears when user clicks a point */}
+      {/* FLIGHT CARD - Appears when user clicks a point */}
       {selectedFlight && (
         <Card id="selected-flight-card" className="p-6 border-2 border-primary shadow-xl animate-in fade-in slide-in-from-top-4">
           <div className="flex items-center justify-between mb-4">
