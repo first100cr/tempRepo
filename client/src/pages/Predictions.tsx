@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import AIPredictionPanel from "@/components/AIPredictionPanel";
 import PriceTrendChart from "@/components/PriceTrendChart";
 import { Brain, TrendingDown, Calendar, MapPin } from "lucide-react";
+import PriceTrendChartInteractive from "@/components/PriceTrendChartInteractive";
 
 export default function Predictions() {
   const [origin, setOrigin] = useState("Delhi");
@@ -102,7 +103,7 @@ export default function Predictions() {
               priceDirection: "down"
             }}
           />
-          <PriceTrendChart 
+          <PriceTrendChartInteractive 
             route={`${origin} → ${destination}`}
             data={priceData} 
             predictedData={predictedData}

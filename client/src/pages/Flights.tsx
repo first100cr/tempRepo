@@ -251,7 +251,7 @@ export default function Flights() {
                       priceDirection: "down"
                     }}
                   />
-                  <PriceTrendChart 
+                  <PriceTrendChartInteractive 
                     route={`${searchParams.origin} → ${searchParams.destination}`}
                     data={priceData} 
                     predictedData={predictedData}
