@@ -1,5 +1,6 @@
 // FILE: client/src/components/PriceTrendChartInteractive.tsx
-// ✅ WITH EXTENSIVE LOGGING for debugging
+// 15-DAY FORWARD PRICE CALENDAR
+// Shows lowest price for next 15 days starting from selected departure date
 
 import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
@@ -16,7 +17,7 @@ import {
 } from "recharts";
 import { Calendar, TrendingDown, TrendingUp, Loader2, X } from "lucide-react";
 import FlightCard from "./FlightCard";
-import { format, parseISO, isToday, isTomorrow } from "date-fns";
+import { format, parseISO, addDays, isToday, isTomorrow } from "date-fns";
 
 interface PriceDataPoint {
   date: string;
@@ -28,6 +29,7 @@ interface PriceDataPoint {
 interface PriceTrendChartInteractiveProps {
   origin: string;
   destination: string;
+  departDate: string;  // Starting date for the 15-day calendar
   passengers?: number;
   onDateSelect?: (date: string, flightData: any) => void;
 }
@@ -35,6 +37,7 @@ interface PriceTrendChartInteractiveProps {
 export default function PriceTrendChartInteractive({
   origin,
   destination,
+  departDate,
   passengers = 1,
   onDateSelect
 }: PriceTrendChartInteractiveProps) {
@@ -46,123 +49,42 @@ export default function PriceTrendChartInteractive({
   const [stats, setStats] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // ✅ LOG: Component mounted/props changed
+  // ✅ AUTO-LOAD: Fetch 15-day price calendar when props change
   useEffect(() => {
-    console.log('🎨 PriceTrendChartInteractive mounted/updated');
-    console.log('📍 Props:', { origin, destination, passengers });
-  }, [origin, destination, passengers]);
-
-  // ✅ AUTO-LOAD: Fetch price calendar when component mounts or params change
-  useEffect(() => {
-    console.log('🔄 useEffect triggered for auto-load');
+    console.log('🔄 PriceTrendChart effect triggered');
     console.log('   Origin:', origin);
     console.log('   Destination:', destination);
-    console.log('   Both present?', origin && destination);
+    console.log('   Depart Date:', departDate);
+    console.log('   Passengers:', passengers);
     
-    if (origin && destination) {
-      console.log('✅ Conditions met - calling fetchPriceCalendar()');
+    if (origin && destination && departDate) {
+      console.log('✅ All required props present - fetching price calendar');
       fetchPriceCalendar();
     } else {
-      console.log('❌ Conditions NOT met - skipping auto-load');
+      console.log('❌ Missing required props');
       if (!origin) console.log('   Missing: origin');
       if (!destination) console.log('   Missing: destination');
+      if (!departDate) console.log('   Missing: departDate');
     }
-  }, [origin, destination, passengers]);
+  }, [origin, destination, departDate, passengers]);
 
-  // Fetch price calendar data
+  // Fetch 15-day price calendar
   const fetchPriceCalendar = async () => {
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    console.log('📊 FETCHING PRICE CALENDAR');
+    console.log('📊 FETCHING 15-DAY PRICE CALENDAR');
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     console.log('Route:', origin, '→', destination);
+    console.log('Starting Date:', departDate);
     console.log('Passengers:', passengers);
-    console.log('Timestamp:', new Date().toISOString());
     
     setLoading(true);
     setError(null);
     
     try {
-      const url = '/api/flights/price-calendar';
-      const payload = { origin, destination, passengers };
+      const url = '/api/flights/price-calendar-15day';
+      const payload = { origin, destination, departDate, passengers };
       
-      console.log('📡 API Call Details:');
-      console.log('   URL:', url);
-      console.log('   Method: POST');
-      console.log('   Payload:', JSON.stringify(payload, null, 2));
-      
-      const startTime = Date.now();
-      
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-
-      const duration = Date.now() - startTime;
-      
-      console.log('📨 Response received:');
-      console.log('   Status:', response.status, response.statusText);
-      console.log('   Duration:', duration, 'ms');
-      console.log('   Headers:', Object.fromEntries(response.headers.entries()));
-
-      const data = await response.json();
-      
-      console.log('📦 Response data:');
-      console.log('   Success:', data.success);
-      console.log('   Price data points:', data.priceData?.length || 0);
-      console.log('   Stats:', data.stats);
-      console.log('   Full response:', data);
-
-      if (!response.ok) {
-        throw new Error(data.message || 'Failed to fetch price data');
-      }
-
-      console.log('✅ Price calendar loaded successfully');
-      console.log('   Valid data points:', data.priceData.filter((d: any) => d.price !== null).length);
-      
-      setPriceData(data.priceData);
-      setStats(data.stats);
-      
-      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      
-    } catch (err: any) {
-      console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      console.error('❌ PRICE CALENDAR ERROR');
-      console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      console.error('Error type:', err.constructor.name);
-      console.error('Error message:', err.message);
-      console.error('Error stack:', err.stack);
-      console.error('Full error:', err);
-      console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      
-      setError(err.message || 'Failed to load price calendar');
-    } finally {
-      setLoading(false);
-      console.log('🏁 fetchPriceCalendar completed');
-    }
-  };
-
-  // Fetch flights for specific date when data point is clicked
-  const handleDataPointClick = async (dataPoint: any) => {
-    if (!dataPoint || !dataPoint.date) {
-      console.log('⚠️ Invalid data point clicked:', dataPoint);
-      return;
-    }
-    
-    console.log('🖱️ Data point clicked:', dataPoint.date, '- Price:', dataPoint.price);
-    setSelectedDate(dataPoint.date);
-    setLoadingFlights(true);
-    
-    try {
-      const url = '/api/flights/validate-date';
-      const payload = {
-        origin,
-        destination,
-        departDate: dataPoint.date,
-        passengers
-      };
-      
-      console.log('📡 Fetching flights for date:', dataPoint.date);
+      console.log('📡 Calling API:', url);
       console.log('   Payload:', payload);
       
       const response = await fetch(url, {
@@ -171,16 +93,58 @@ export default function PriceTrendChartInteractive({
         body: JSON.stringify(payload)
       });
 
-      console.log('📨 Response:', response.status);
+      console.log('📨 Response status:', response.status);
+
+      const data = await response.json();
+      console.log('📦 Response data:', data);
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to fetch price data');
+      }
+
+      console.log('✅ Price calendar loaded:', data.priceData.length, 'days');
+      setPriceData(data.priceData);
+      setStats(data.stats);
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      
+    } catch (err: any) {
+      console.error('❌ Price calendar error:', err);
+      setError(err.message || 'Failed to load price calendar');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Fetch flights for specific date when data point is clicked
+  const handleDataPointClick = async (dataPoint: any) => {
+    if (!dataPoint || !dataPoint.date) return;
+    
+    console.log('🖱️ Clicked date:', dataPoint.date, '- Price:', dataPoint.price);
+    setSelectedDate(dataPoint.date);
+    setLoadingFlights(true);
+    
+    try {
+      const response = await fetch('/api/flights/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          origin,
+          destination,
+          departDate: dataPoint.date,
+          passengers,
+          tripType: 'one-way'
+        })
+      });
+
       const data = await response.json();
 
       if (!response.ok) {
         throw new Error(data.message || 'Failed to fetch flights');
       }
 
-      console.log('✅ Flights loaded:', data.flights.length, 'flights');
-      setSelectedFlights(data.flights || []);
-      onDateSelect?.(dataPoint.date, data.flights[0]);
+      console.log('✅ Flights loaded:', data.data?.length || 0, 'flights');
+      setSelectedFlights(data.data || []);
+      onDateSelect?.(dataPoint.date, data.data?.[0]);
       
     } catch (err: any) {
       console.error('❌ Flight fetch error:', err);
@@ -198,16 +162,17 @@ export default function PriceTrendChartInteractive({
     
     const isSelected = payload.date === selectedDate;
     const isLowest = stats && value === stats.lowestPrice;
+    const isSearchDate = payload.date === departDate;
     
     return (
       <g>
         <circle
           cx={cx}
           cy={cy}
-          r={isSelected ? 8 : isLowest ? 7 : 5}
-          fill={isLowest ? "#10b981" : isSelected ? "#0ea5e9" : "hsl(var(--primary))"}
-          stroke={isSelected ? "#fff" : "none"}
-          strokeWidth={isSelected ? 2 : 0}
+          r={isSelected ? 8 : isLowest ? 7 : isSearchDate ? 6 : 5}
+          fill={isLowest ? "#10b981" : isSelected ? "#0ea5e9" : isSearchDate ? "#f59e0b" : "hsl(var(--primary))"}
+          stroke={isSelected ? "#fff" : isSearchDate ? "#fff" : "none"}
+          strokeWidth={isSelected || isSearchDate ? 2 : 0}
           style={{ cursor: 'pointer' }}
           onClick={() => handleDataPointClick(payload)}
         />
@@ -223,6 +188,18 @@ export default function PriceTrendChartInteractive({
             Best
           </text>
         )}
+        {isSearchDate && !isLowest && (
+          <text
+            x={cx}
+            y={cy - 15}
+            textAnchor="middle"
+            fill="#f59e0b"
+            fontSize="11"
+            fontWeight="bold"
+          >
+            Your Date
+          </text>
+        )}
       </g>
     );
   };
@@ -233,11 +210,13 @@ export default function PriceTrendChartInteractive({
 
     const data = payload[0].payload;
     const date = parseISO(data.date);
+    const isSearchDate = data.date === departDate;
     
     return (
       <div className="bg-popover border border-border rounded-lg p-3 shadow-lg">
         <div className="font-medium mb-1">
           {format(date, 'EEE, MMM dd, yyyy')}
+          {isSearchDate && <span className="ml-2 text-xs text-amber-600">(Your Search)</span>}
         </div>
         {data.price !== null ? (
           <>
@@ -262,18 +241,12 @@ export default function PriceTrendChartInteractive({
     const date = parseISO(dateStr);
     if (isToday(date)) return 'Today';
     if (isTomorrow(date)) return 'Tomorrow';
+    if (dateStr === departDate) return format(date, 'MMM dd') + '*';
     return format(date, 'MMM dd');
   };
 
   // Filter valid price data for chart
   const validPriceData = priceData.filter(d => d.price !== null);
-
-  console.log('🎨 Render - Current state:');
-  console.log('   Loading:', loading);
-  console.log('   Price data points:', priceData.length);
-  console.log('   Valid data points:', validPriceData.length);
-  console.log('   Error:', error);
-  console.log('   Stats:', stats);
 
   return (
     <div className="space-y-6">
@@ -283,10 +256,10 @@ export default function PriceTrendChartInteractive({
           <div>
             <h3 className="text-2xl font-semibold mb-2 flex items-center gap-2">
               <Calendar className="h-6 w-6" />
-              Price Trend & Calendar
+              15-Day Price Calendar
             </h3>
             <p className="text-sm text-muted-foreground">
-              {origin} → {destination} • Click any point to see flights
+              {origin} → {destination} from {format(parseISO(departDate), 'MMM dd')} • Click any point to see flights
             </p>
           </div>
         </div>
@@ -294,13 +267,12 @@ export default function PriceTrendChartInteractive({
         {/* Statistics */}
         {stats && (
           <>
-            {/* Real Data Indicator */}
             <div className="flex items-center justify-between mt-6 mb-4">
               <Badge variant="default" className="bg-green-600 hover:bg-green-700 text-white">
                 ✓ Real-Time Data • Amadeus Production
               </Badge>
               <Badge variant="outline" className="text-xs">
-                No Mock Data • 100% Verified
+                15 Days Forward
               </Badge>
             </div>
             
@@ -314,15 +286,22 @@ export default function PriceTrendChartInteractive({
                 {stats.bestDate && (
                   <div className="text-xs text-muted-foreground mt-1">
                     {format(parseISO(stats.bestDate), 'MMM dd')}
+                    {stats.bestDate !== departDate && (
+                      <span className="text-green-600 ml-1">
+                        (Save ₹{(stats.searchDatePrice - stats.lowestPrice)?.toLocaleString('en-IN') || 0})
+                      </span>
+                    )}
                   </div>
                 )}
               </div>
               
               <div className="bg-background/50 rounded-lg p-4">
-                <div className="text-xs text-muted-foreground mb-1">Highest Price</div>
-                <div className="text-2xl font-bold text-orange-600 flex items-center gap-1">
-                  <TrendingUp className="h-5 w-5" />
-                  ₹{stats.highestPrice?.toLocaleString('en-IN')}
+                <div className="text-xs text-muted-foreground mb-1">Your Date Price</div>
+                <div className="text-2xl font-bold text-amber-600 flex items-center gap-1">
+                  ₹{stats.searchDatePrice?.toLocaleString('en-IN') || 'N/A'}
+                </div>
+                <div className="text-xs text-muted-foreground mt-1">
+                  {format(parseISO(departDate), 'MMM dd')}
                 </div>
               </div>
               
@@ -336,10 +315,10 @@ export default function PriceTrendChartInteractive({
               <div className="bg-background/50 rounded-lg p-4">
                 <div className="text-xs text-muted-foreground mb-1">Data Points</div>
                 <div className="text-2xl font-bold">
-                  {validPriceData.length}/45
+                  {validPriceData.length}/15
                 </div>
                 <div className="text-xs text-muted-foreground mt-1">
-                  days tracked
+                  days available
                 </div>
               </div>
             </div>
@@ -352,12 +331,9 @@ export default function PriceTrendChartInteractive({
         <Card className="p-12">
           <div className="flex flex-col items-center justify-center">
             <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-            <p className="text-lg font-medium">Loading price calendar...</p>
+            <p className="text-lg font-medium">Loading 15-day price calendar...</p>
             <p className="text-sm text-muted-foreground mt-2">
-              Fetching prices for 45 days (this may take a minute)
-            </p>
-            <p className="text-xs text-muted-foreground mt-2">
-              Check console for detailed progress
+              Checking prices for flexible dates
             </p>
           </div>
         </Card>
@@ -388,17 +364,17 @@ export default function PriceTrendChartInteractive({
         <Card className="p-6">
           <div className="mb-4 flex items-center justify-between">
             <div>
-              <h4 className="font-semibold">45-Day Price History</h4>
+              <h4 className="font-semibold">Price Comparison</h4>
               <p className="text-xs text-muted-foreground">
-                30 days past + 15 days future • Real Amadeus data
+                Next 15 days starting from {format(parseISO(departDate), 'MMM dd')}
               </p>
             </div>
             <div className="flex items-center gap-2">
               <Badge variant="secondary" className="text-xs">
-                Interactive • Click any point
+                Interactive
               </Badge>
               <Badge variant="default" className="text-xs bg-green-600">
-                Real Data Only
+                Real Data
               </Badge>
             </div>
           </div>
@@ -439,12 +415,16 @@ export default function PriceTrendChartInteractive({
               <span>Best Price</span>
             </div>
             <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-primary"></div>
-              <span>Regular Price</span>
+              <div className="w-3 h-3 rounded-full bg-amber-500"></div>
+              <span>Your Search Date</span>
             </div>
             <div className="flex items-center gap-2">
               <div className="w-3 h-3 rounded-full bg-sky-500"></div>
-              <span>Selected Date</span>
+              <span>Selected</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded-full bg-primary"></div>
+              <span>Other Dates</span>
             </div>
           </div>
         </Card>
@@ -491,26 +471,7 @@ export default function PriceTrendChartInteractive({
               {selectedFlights.slice(0, 5).map((flight) => (
                 <FlightCard
                   key={flight.id}
-                  id={flight.id}
-                  airline={flight.airline}
-                  airlineLogo={flight.airlineLogo}
-                  flightNumber={flight.flightNumber}
-                  origin={flight.origin}
-                  destination={flight.destination}
-                  departTime={flight.departTime}
-                  arriveTime={flight.arriveTime}
-                  departDate={flight.departDate}
-                  arriveDate={flight.arriveDate}
-                  duration={flight.duration}
-                  stops={flight.stops}
-                  price={flight.price}
-                  currency={flight.currency}
-                  aircraft={flight.aircraft}
-                  baggage={flight.baggage}
-                  cabinClass={flight.cabinClass}
-                  availableSeats={flight.availableSeats}
-                  isValidated={flight.isValidated}
-                  bookingUrl={flight.bookingUrl}
+                  {...flight}
                   isBestDeal={flight.id === selectedFlights[0].id}
                 />
               ))}
