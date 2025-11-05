@@ -1,0 +1,19 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "outDir": "../dist",
+    "paths": {
+      "@shared/schema": ["../shared/schema"]
+    },
+    "target": "ES2020",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "noEmit": false,
+    "allowImportingTsExtensions": false,
+    "typeRoots": ["./types", "../node_modules/@types"],
+    "types": ["node"]
+  },
+  "include": ["./**/*.ts","./types/**/*.d.ts"]
+}
