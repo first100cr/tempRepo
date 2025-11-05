@@ -1,7 +1,5 @@
 // FILE: client/src/components/PriceTrendChartInteractive.tsx
-// ✅ FOR SINGLE DOCKER CONTAINER (Frontend + Backend together)
-// ✅ AUTO-LOADS: No button - loads automatically on every search
-// ✅ RELATIVE URLs: Works in same container
+// ✅ WITH EXTENSIVE LOGGING for debugging
 
 import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
@@ -48,77 +46,139 @@ export default function PriceTrendChartInteractive({
   const [stats, setStats] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // ✅ LOG: Component mounted/props changed
+  useEffect(() => {
+    console.log('🎨 PriceTrendChartInteractive mounted/updated');
+    console.log('📍 Props:', { origin, destination, passengers });
+  }, [origin, destination, passengers]);
+
   // ✅ AUTO-LOAD: Fetch price calendar when component mounts or params change
   useEffect(() => {
+    console.log('🔄 useEffect triggered for auto-load');
+    console.log('   Origin:', origin);
+    console.log('   Destination:', destination);
+    console.log('   Both present?', origin && destination);
+    
     if (origin && destination) {
-      console.log('🔄 Auto-loading price calendar for:', origin, '→', destination);
+      console.log('✅ Conditions met - calling fetchPriceCalendar()');
       fetchPriceCalendar();
+    } else {
+      console.log('❌ Conditions NOT met - skipping auto-load');
+      if (!origin) console.log('   Missing: origin');
+      if (!destination) console.log('   Missing: destination');
     }
   }, [origin, destination, passengers]);
 
   // Fetch price calendar data
   const fetchPriceCalendar = async () => {
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log('📊 FETCHING PRICE CALENDAR');
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log('Route:', origin, '→', destination);
+    console.log('Passengers:', passengers);
+    console.log('Timestamp:', new Date().toISOString());
+    
     setLoading(true);
     setError(null);
     
     try {
-      console.log('📡 Fetching price calendar from /api/flights/price-calendar');
+      const url = '/api/flights/price-calendar';
+      const payload = { origin, destination, passengers };
       
-      // ✅ RELATIVE URL: Works in single Docker container
-      const response = await fetch('/api/flights/price-calendar', {
+      console.log('📡 API Call Details:');
+      console.log('   URL:', url);
+      console.log('   Method: POST');
+      console.log('   Payload:', JSON.stringify(payload, null, 2));
+      
+      const startTime = Date.now();
+      
+      const response = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ origin, destination, passengers })
+        body: JSON.stringify(payload)
       });
 
-      console.log('📊 Response status:', response.status);
+      const duration = Date.now() - startTime;
+      
+      console.log('📨 Response received:');
+      console.log('   Status:', response.status, response.statusText);
+      console.log('   Duration:', duration, 'ms');
+      console.log('   Headers:', Object.fromEntries(response.headers.entries()));
 
       const data = await response.json();
+      
+      console.log('📦 Response data:');
+      console.log('   Success:', data.success);
+      console.log('   Price data points:', data.priceData?.length || 0);
+      console.log('   Stats:', data.stats);
+      console.log('   Full response:', data);
 
       if (!response.ok) {
         throw new Error(data.message || 'Failed to fetch price data');
       }
 
-      console.log('✅ Price calendar loaded:', data.priceData.length, 'data points');
+      console.log('✅ Price calendar loaded successfully');
+      console.log('   Valid data points:', data.priceData.filter((d: any) => d.price !== null).length);
+      
       setPriceData(data.priceData);
       setStats(data.stats);
       
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      
     } catch (err: any) {
-      console.error('❌ Price calendar error:', err);
+      console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      console.error('❌ PRICE CALENDAR ERROR');
+      console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      console.error('Error type:', err.constructor.name);
+      console.error('Error message:', err.message);
+      console.error('Error stack:', err.stack);
+      console.error('Full error:', err);
+      console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      
       setError(err.message || 'Failed to load price calendar');
     } finally {
       setLoading(false);
+      console.log('🏁 fetchPriceCalendar completed');
     }
   };
 
   // Fetch flights for specific date when data point is clicked
   const handleDataPointClick = async (dataPoint: any) => {
-    if (!dataPoint || !dataPoint.date) return;
+    if (!dataPoint || !dataPoint.date) {
+      console.log('⚠️ Invalid data point clicked:', dataPoint);
+      return;
+    }
     
-    console.log('🖱️ Clicked date:', dataPoint.date);
+    console.log('🖱️ Data point clicked:', dataPoint.date, '- Price:', dataPoint.price);
     setSelectedDate(dataPoint.date);
     setLoadingFlights(true);
     
     try {
-      // ✅ RELATIVE URL
-      const response = await fetch('/api/flights/validate-date', {
+      const url = '/api/flights/validate-date';
+      const payload = {
+        origin,
+        destination,
+        departDate: dataPoint.date,
+        passengers
+      };
+      
+      console.log('📡 Fetching flights for date:', dataPoint.date);
+      console.log('   Payload:', payload);
+      
+      const response = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          origin,
-          destination,
-          departDate: dataPoint.date,
-          passengers
-        })
+        body: JSON.stringify(payload)
       });
 
+      console.log('📨 Response:', response.status);
       const data = await response.json();
 
       if (!response.ok) {
         throw new Error(data.message || 'Failed to fetch flights');
       }
 
-      console.log('✅ Flights loaded for', dataPoint.date, ':', data.flights.length, 'flights');
+      console.log('✅ Flights loaded:', data.flights.length, 'flights');
       setSelectedFlights(data.flights || []);
       onDateSelect?.(dataPoint.date, data.flights[0]);
       
@@ -208,6 +268,13 @@ export default function PriceTrendChartInteractive({
   // Filter valid price data for chart
   const validPriceData = priceData.filter(d => d.price !== null);
 
+  console.log('🎨 Render - Current state:');
+  console.log('   Loading:', loading);
+  console.log('   Price data points:', priceData.length);
+  console.log('   Valid data points:', validPriceData.length);
+  console.log('   Error:', error);
+  console.log('   Stats:', stats);
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -288,6 +355,9 @@ export default function PriceTrendChartInteractive({
             <p className="text-lg font-medium">Loading price calendar...</p>
             <p className="text-sm text-muted-foreground mt-2">
               Fetching prices for 45 days (this may take a minute)
+            </p>
+            <p className="text-xs text-muted-foreground mt-2">
+              Check console for detailed progress
             </p>
           </div>
         </Card>
