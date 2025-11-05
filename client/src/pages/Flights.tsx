@@ -1,5 +1,5 @@
 // client/src/pages/Flights.tsx
-// Updated with airport hero background matching Home page
+// UPDATED VERSION - With 45-Day Price Trend Chart Integration
 
 import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
@@ -7,7 +7,7 @@ import FlightSearchForm from "@/components/FlightSearchForm";
 import FlightResultsInline from "@/components/FlightResultsInline";
 import FilterPanel from "@/components/FilterPanel";
 import AIPredictionPanel from "@/components/AIPredictionPanel";
-import PriceTrendChartInteractive from '@/components/PriceTrendChartInteractive';
+import PriceTrendChart45Day from '@/components/PriceTrendChart45Day'; // 🆕 NEW IMPORT
 import { Loader2, Plane } from "lucide-react";
 import airportHero from "@assets/generated_images/clouds.png";
 
@@ -146,22 +146,6 @@ export default function Flights() {
     setFlights([]);
   };
 
-  const priceData = [
-    { date: 'Jan 1', price: 5200 },
-    { date: 'Jan 5', price: 4800 },
-    { date: 'Jan 10', price: 5500 },
-    { date: 'Jan 15', price: 4900 },
-    { date: 'Jan 20', price: 4500 },
-    { date: 'Jan 25', price: 4700 },
-    { date: 'Jan 30', price: 4400 },
-  ];
-
-  const predictedData = [
-    { date: 'Feb 1', price: 4200 },
-    { date: 'Feb 3', price: 4100 },
-    { date: 'Feb 5', price: 4300 },
-  ];
-
   return (
     <div className="bg-background">
       {/* HERO SECTION WITH AIRPORT BACKGROUND */}
@@ -235,28 +219,36 @@ export default function Flights() {
               </div>
             </aside>
 
-            {/* MAIN CONTENT - Predictions, Trends, and Results */}
+            {/* MAIN CONTENT - 45-Day Price Trend, AI Predictions, and Results */}
             <main className="lg:col-span-3 space-y-6">
               
-              {/* AI PREDICTION & PRICE TRENDS */}
+              {/* 🆕 45-DAY PRICE TREND CHART (NEW!) */}
               {searchParams && (
-                <div className="grid lg:grid-cols-2 gap-6">
-                  <AIPredictionPanel
-                    route={`${searchParams.origin} → ${searchParams.destination}`}
-                    prediction={{
-                      recommendation: "book_now",
-                      confidence: 87,
-                      bestTimeToBook: "Within next 48 hours",
-                      expectedSavings: 850,
-                      priceDirection: "down"
-                    }}
-                  />
-                  <PriceTrendChartInteractive 
-                    route={`${searchParams.origin} → ${searchParams.destination}`}
-                    data={priceData} 
-                    predictedData={predictedData}
-                  />
-                </div>
+                <PriceTrendChart45Day
+                  origin={searchParams.origin}
+                  destination={searchParams.destination}
+                  departDate={searchParams.departDate}
+                  passengers={searchParams.passengers || 1}
+                  onDateSelect={(date, flightData) => {
+                    console.log('User selected date from price chart:', date);
+                    // Optional: Update the search params and trigger a new search
+                    // or scroll to the flights section, etc.
+                  }}
+                />
+              )}
+
+              {/* AI PREDICTION PANEL (Optional - can remove if not needed) */}
+              {searchParams && (
+                <AIPredictionPanel
+                  route={`${searchParams.origin} → ${searchParams.destination}`}
+                  prediction={{
+                    recommendation: "book_now",
+                    confidence: 87,
+                    bestTimeToBook: "Within next 48 hours",
+                    expectedSavings: 850,
+                    priceDirection: "down"
+                  }}
+                />
               )}
 
               {/* FLIGHT RESULTS WITH PAGINATION */}
@@ -298,9 +290,9 @@ export default function Flights() {
               </div>
               <div className="p-4 border rounded-lg">
                 <div className="text-3xl mb-2">📊</div>
-                <div className="font-medium mb-1">Price Insights</div>
+                <div className="font-medium mb-1">45-Day Price Trends</div>
                 <div className="text-xs text-muted-foreground">
-                  Predict future price changes
+                  See 30 days before + 15 days after
                 </div>
               </div>
             </div>
@@ -310,3 +302,15 @@ export default function Flights() {
     </div>
   );
 }
+
+
+
+
+
+
+
+
+
+
+
+

@@ -1,5 +1,5 @@
 // server/routes.ts
-// UPDATED VERSION - With price calendar endpoints integrated
+// UPDATED VERSION - With 45-day price calendar endpoint integrated
 // NO MOCK DATA - All endpoints use Amadeus Production API only
 
 import type { Express, Request } from "express";
@@ -23,42 +23,31 @@ declare global {
 // RETRY CONFIGURATION
 // ========================================
 const RETRY_CONFIG = {
-  maxAttempts: 3,           // Retry up to 3 times total
-  delayMs: 2000,            // Wait 2 seconds between retries
-  retryableStatusCodes: [503, 502, 504, 429] // Which HTTP errors to retry
+  maxAttempts: 3,
+  delayMs: 2000,
+  retryableStatusCodes: [503, 502, 504, 429]
 };
 
 // ========================================
 // UTILITY FUNCTIONS
 // ========================================
 
-/**
- * Sleep for specified milliseconds
- */
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-/**
- * Retry a function with exponential backoff
- * Transparently handles temporary API failures
- */
 async function retryWithDelay<T>(
   fn: () => Promise<T>,
   attemptNumber: number = 1
 ): Promise<T> {
   try {
     const result = await fn();
-    
     if (attemptNumber > 1) {
       console.log(`✅ Retry successful on attempt ${attemptNumber}`);
     }
-    
     return result;
-    
   } catch (error: any) {
     const errorStatus = error.status || error.statusCode || error.response?.status;
     const errorCode = error.code;
     
-    // Determine if we should retry
     const shouldRetry = 
       attemptNumber < RETRY_CONFIG.maxAttempts &&
       (
@@ -72,15 +61,10 @@ async function retryWithDelay<T>(
 
     if (shouldRetry) {
       console.log(`⚠️  Attempt ${attemptNumber}/${RETRY_CONFIG.maxAttempts} failed (${errorStatus || errorCode}), retrying in ${RETRY_CONFIG.delayMs}ms...`);
-      
-      // Wait before retrying
       await sleep(RETRY_CONFIG.delayMs);
-      
-      // Retry with incremented attempt number
       return retryWithDelay(fn, attemptNumber + 1);
     }
 
-    // Max attempts reached or non-retryable error
     if (attemptNumber >= RETRY_CONFIG.maxAttempts) {
       console.error(`❌ All ${RETRY_CONFIG.maxAttempts} retry attempts failed`);
     } else {
@@ -96,8 +80,6 @@ async function retryWithDelay<T>(
 // ========================================
 
 export function registerRoutes(app: Express): Server {
-  // Note: If you have auth setup elsewhere, you can add it here:
-  // setupAuth(app);
 
   // ========================================
   // FLIGHT SEARCH WITH REAL-TIME VALIDATION
@@ -108,7 +90,6 @@ export function registerRoutes(app: Express): Server {
     try {
       const { origin, destination, departDate, returnDate, passengers, tripType } = req.body;
 
-      // Validate required fields
       if (!origin || !destination || !departDate) {
         return res.status(400).json({ 
           message: "Missing required fields: origin, destination, and departDate are required" 
@@ -129,9 +110,6 @@ export function registerRoutes(app: Express): Server {
       let validationStats = null;
 
       try {
-        // ============================================
-        // REQUIRE AMADEUS CREDENTIALS - NO MOCK DATA
-        // ============================================
         const apiKey = process.env.AMADEUS_API_KEY || process.env.AMADEUS_CLIENT_ID;
         const apiSecret = process.env.AMADEUS_API_SECRET || process.env.AMADEUS_CLIENT_SECRET;
         
@@ -141,10 +119,6 @@ export function registerRoutes(app: Express): Server {
 
         if (!apiKey || !apiSecret) {
           console.error('❌ AMADEUS CREDENTIALS MISSING!');
-          console.error('   Required environment variables:');
-          console.error('   - AMADEUS_API_KEY');
-          console.error('   - AMADEUS_API_SECRET');
-          
           return res.status(500).json({
             success: false,
             error: 'Amadeus API credentials not configured',
@@ -152,14 +126,8 @@ export function registerRoutes(app: Express): Server {
           });
         }
 
-        // ============================================
-        // USE AMADEUS PRODUCTION API
-        // ============================================
         console.log('✅ Amadeus credentials found!');
         console.log('🚀 Using Amadeus PRODUCTION API for live flight data');
-        console.log('   Route:', origin, '→', destination);
-        console.log('   Date:', departDate);
-        console.log('   Passengers:', passengers || 1);
         
         flightData = await retryWithDelay(async () => {
           console.log('📡 Calling Amadeus Production API...');
@@ -174,7 +142,6 @@ export function registerRoutes(app: Express): Server {
           return results;
         });
         
-        // Calculate validation stats
         validationStats = {
           total: flightData.length,
           validated: flightData.filter((f: any) => f.isValidated).length,
@@ -185,8 +152,6 @@ export function registerRoutes(app: Express): Server {
         console.log('   Total flights:', validationStats.total);
         console.log('   Validated:', validationStats.validated);
         console.log('   Unvalidated:', validationStats.unvalidated);
-        console.log('   ✅ All flights are REAL and BOOKABLE from Amadeus Production API!');
-
 
         const duration = Date.now() - startTime;
         
@@ -206,19 +171,9 @@ export function registerRoutes(app: Express): Server {
         console.error('='.repeat(80));
         console.error('Error type:', apiError.name || 'Unknown');
         console.error('Error message:', apiError.message);
-        console.error('Error code:', apiError.code);
-        console.error('HTTP status:', apiError.response?.status);
-        console.error('Error details:', JSON.stringify(apiError.response?.data || {}, null, 2));
         console.error('='.repeat(80) + '\n');
         
-        // Check for specific error types
         if (apiError.response?.status === 401 || apiError.message?.includes('authentication')) {
-          console.error('🚨 AUTHENTICATION ERROR - Check your Amadeus credentials!');
-          console.error('   Verify:');
-          console.error('   1. AMADEUS_API_KEY is correct');
-          console.error('   2. AMADEUS_API_SECRET is correct');
-          console.error('   3. Using production credentials from https://developers.amadeus.com');
-          
           return res.status(401).json({
             success: false,
             error: 'Authentication failed with Amadeus API',
@@ -228,8 +183,6 @@ export function registerRoutes(app: Express): Server {
         }
 
         if (apiError.response?.status === 404 || apiError.message?.includes('No flights found')) {
-          console.warn('⚠️  No flights found for this route/date combination');
-          
           return res.status(404).json({
             success: false,
             error: 'No flights found',
@@ -239,8 +192,6 @@ export function registerRoutes(app: Express): Server {
         }
 
         if (apiError.response?.status === 429) {
-          console.error('🚨 RATE LIMIT EXCEEDED');
-          
           return res.status(429).json({
             success: false,
             error: 'Rate limit exceeded',
@@ -248,10 +199,6 @@ export function registerRoutes(app: Express): Server {
             code: 'RATE_LIMIT'
           });
         }
-        
-        // Generic error response - NO MOCK DATA FALLBACK
-        console.error('❌ Amadeus API call failed after retries');
-        console.error('   Returning error to client (no fallback data)');
         
         return res.status(500).json({
           success: false,
@@ -262,7 +209,6 @@ export function registerRoutes(app: Express): Server {
         });
       }
 
-      // Return successful response with validation metadata
       res.json({
         success: true,
         data: flightData,
@@ -284,7 +230,6 @@ export function registerRoutes(app: Express): Server {
 
     } catch (error: any) {
       const duration = Date.now() - startTime;
-      
       console.error(`\n${'='.repeat(80)}`);
       console.error(`❌ SEARCH FAILED`);
       console.error(`${'='.repeat(80)}`);
@@ -300,29 +245,26 @@ export function registerRoutes(app: Express): Server {
   });
 
   // ========================================
-  // PRICE CALENDAR - 45 DAY PRICE TRENDS
+  // PRICE CALENDAR - 45 DAY PRICE TRENDS (30 DAYS BEFORE + 15 DAYS AFTER)
   // NO MOCK DATA - AMADEUS PRODUCTION API ONLY
   // ========================================
-  app.post("/api/flights/price-calendar", async (req: Request, res) => {
+  app.post("/api/flights/price-calendar-45day", async (req: Request, res) => {
     const startTime = Date.now();
     
     try {
-      const { origin, destination, passengers = 1 } = req.body;
+      const { origin, destination, departDate, passengers = 1 } = req.body;
 
-      if (!origin || !destination) {
+      if (!origin || !destination || !departDate) {
         return res.status(400).json({ 
-          message: "Missing required fields: origin and destination" 
+          message: "Missing required fields: origin, destination, and departDate" 
         });
       }
 
-      // ============================================
-      // REQUIRE AMADEUS CREDENTIALS - NO MOCK DATA
-      // ============================================
       const apiKey = process.env.AMADEUS_API_KEY || process.env.AMADEUS_CLIENT_ID;
       const apiSecret = process.env.AMADEUS_API_SECRET || process.env.AMADEUS_CLIENT_SECRET;
       
       if (!apiKey || !apiSecret) {
-        console.error('❌ AMADEUS CREDENTIALS MISSING FOR PRICE CALENDAR!');
+        console.error('❌ AMADEUS CREDENTIALS MISSING FOR 45-DAY PRICE CALENDAR!');
         return res.status(500).json({
           success: false,
           error: 'Amadeus API credentials not configured',
@@ -331,31 +273,36 @@ export function registerRoutes(app: Express): Server {
       }
 
       console.log(`\n${'='.repeat(80)}`);
-      console.log(`📊 PRICE CALENDAR REQUEST - REAL DATA ONLY`);
+      console.log(`📊 45-DAY PRICE CALENDAR REQUEST - REAL DATA ONLY`);
       console.log(`${'='.repeat(80)}`);
       console.log(`Route: ${origin} → ${destination}`);
-      console.log(`Date Range: 30 days past + 15 days future`);
+      console.log(`Search Date: ${departDate}`);
+      console.log(`Date Range: 30 days before + 15 days after = 45 days total`);
       console.log(`API: Amadeus Production (NO MOCK DATA)`);
       console.log(`${'='.repeat(80)}\n`);
 
-      // Generate date range: -30 to +15 days
-      const today = new Date();
+      const searchDate = new Date(departDate);
       const priceData: Array<{
         date: string;
         price: number | null;
         flightData: any | null;
         status: 'success' | 'no_flights' | 'error';
+        daysFromSearch: number;
       }> = [];
 
-      // Start from 30 days ago
-      const startDate = new Date(today);
+      const startDate = new Date(searchDate);
       startDate.setDate(startDate.getDate() - 30);
+      
+      const endDate = new Date(searchDate);
+      endDate.setDate(endDate.getDate() + 15);
 
-      // Fetch prices for 45 days
       const totalDays = 45;
-      const batchSize = 5; // Process 5 dates at a time to avoid rate limits
+      const batchSize = 3;
       
       console.log(`🔄 Starting to fetch REAL prices for ${totalDays} dates...`);
+      console.log(`   From: ${startDate.toISOString().split('T')[0]}`);
+      console.log(`   To: ${endDate.toISOString().split('T')[0]}`);
+      console.log(`   Search Date: ${departDate}`);
       console.log(`⚠️  This will take ~${Math.ceil(totalDays / batchSize)} batches\n`);
       
       for (let batch = 0; batch < Math.ceil(totalDays / batchSize); batch++) {
@@ -368,87 +315,87 @@ export function registerRoutes(app: Express): Server {
           const currentDate = new Date(startDate);
           currentDate.setDate(currentDate.getDate() + dayIndex);
           
-          // Skip dates in the past (more than yesterday)
-          const yesterday = new Date(today);
+          const yesterday = new Date();
           yesterday.setDate(yesterday.getDate() - 1);
           yesterday.setHours(0, 0, 0, 0);
           
+          const dateStr = currentDate.toISOString().split('T')[0];
+          const daysFromSearch = Math.round((currentDate.getTime() - searchDate.getTime()) / (1000 * 60 * 60 * 24));
+          
           if (currentDate < yesterday) {
             priceData.push({
-              date: currentDate.toISOString().split('T')[0],
+              date: dateStr,
               price: null,
               flightData: null,
-              status: 'error'
+              status: 'error',
+              daysFromSearch
             });
             continue;
           }
           
-          const dateStr = currentDate.toISOString().split('T')[0];
-          
-          // ============================================
-          // REAL AMADEUS API CALL - NO MOCK FALLBACK
-          // ============================================
           const promise = searchFlights({
             origin,
             destination,
             departDate: dateStr,
             passengers,
-            maxResults: 10
+            maxResults: 20
           })
             .then((flights) => {
               if (flights.length === 0) {
-                console.log(`   ⚠️  ${dateStr}: No flights found (Amadeus returned 0)`);
+                console.log(`   ⚠️  ${dateStr} (${daysFromSearch > 0 ? '+' : ''}${daysFromSearch}d): No flights`);
                 return {
                   date: dateStr,
                   price: null,
                   flightData: null,
-                  status: 'no_flights' as const
+                  status: 'no_flights' as const,
+                  daysFromSearch
                 };
               }
               
-              // Find cheapest flight from REAL Amadeus data
               const cheapestFlight = flights.reduce((min, flight) => 
                 flight.price < min.price ? flight : min
               );
               
-              console.log(`   ✅ ${dateStr}: ₹${cheapestFlight.price} (${flights.length} flights)`);
+              const marker = dateStr === departDate ? ' 🎯' : '';
+              console.log(`   ✅ ${dateStr} (${daysFromSearch > 0 ? '+' : ''}${daysFromSearch}d): ₹${cheapestFlight.price}${marker}`);
               
               return {
                 date: dateStr,
                 price: cheapestFlight.price,
                 flightData: cheapestFlight,
-                status: 'success' as const
+                status: 'success' as const,
+                daysFromSearch
               };
             })
             .catch((error) => {
-              console.error(`   ❌ ${dateStr}: Amadeus API error - ${error.message}`);
-              // NO MOCK DATA FALLBACK - Return error status
+              console.error(`   ❌ ${dateStr} (${daysFromSearch > 0 ? '+' : ''}${daysFromSearch}d): ${error.message}`);
               return {
                 date: dateStr,
                 price: null,
                 flightData: null,
-                status: 'error' as const
+                status: 'error' as const,
+                daysFromSearch
               };
             });
           
           batchPromises.push(promise);
         }
         
-        // Wait for this batch to complete
         const batchResults = await Promise.all(batchPromises);
         priceData.push(...batchResults);
         
-        // Small delay between batches to avoid rate limiting
         if (batch < Math.ceil(totalDays / batchSize) - 1) {
-          await sleep(1000); // 1 second delay
+          await sleep(2000);
         }
         
         console.log(`\n✅ Batch ${batch + 1}/${Math.ceil(totalDays / batchSize)} complete\n`);
       }
 
-      // Filter out null prices and calculate statistics
       const validPrices = priceData.filter(d => d.price !== null);
       const prices = validPrices.map(d => d.price!);
+      
+      const searchDateData = priceData.find(d => d.date === departDate);
+      const searchDatePrice = searchDateData?.price || null;
       
       const stats = {
         lowestPrice: prices.length > 0 ? Math.min(...prices) : null,
@@ -456,18 +403,37 @@ export function registerRoutes(app: Express): Server {
         averagePrice: prices.length > 0 ? Math.round(prices.reduce((a, b) => a + b, 0) / prices.length) : null,
         bestDate: validPrices.length > 0 
           ? validPrices.reduce((min, d) => d.price! < min.price! ? d : min).date
-          : null
+          : null,
+        searchDatePrice,
+        potentialSavings: searchDatePrice && prices.length > 0 
+          ? Math.max(0, searchDatePrice - Math.min(...prices))
+          : null,
+        daysBeforeBestPrice: null as number | null
       };
+
+      if (stats.bestDate) {
+        const bestDateObj = new Date(stats.bestDate);
+        const daysDiff = Math.round((bestDateObj.getTime() - searchDate.getTime()) / (1000 * 60 * 60 * 24));
+        stats.daysBeforeBestPrice = daysDiff;
+      }
 
       const duration = Date.now() - startTime;
       
       console.log(`\n${'='.repeat(80)}`);
-      console.log(`✅ PRICE CALENDAR COMPLETED - ALL REAL DATA`);
+      console.log(`✅ 45-DAY PRICE CALENDAR COMPLETED - ALL REAL DATA`);
       console.log(`${'='.repeat(80)}`);
-      console.log(`Duration: ${duration}ms`);
+      console.log(`Duration: ${(duration / 1000).toFixed(1)}s`);
       console.log(`Valid Data Points: ${validPrices.length}/${totalDays}`);
       console.log(`Price Range: ₹${stats.lowestPrice} - ₹${stats.highestPrice}`);
+      console.log(`Search Date (${departDate}): ₹${stats.searchDatePrice || 'N/A'}`);
       console.log(`Best Date: ${stats.bestDate} (₹${stats.lowestPrice})`);
+      if (stats.potentialSavings && stats.potentialSavings > 0) {
+        console.log(`Potential Savings: ₹${stats.potentialSavings} (${Math.round(stats.potentialSavings / (stats.searchDatePrice || 1) * 100)}%)`);
+      }
+      if (stats.daysBeforeBestPrice !== null) {
+        const direction = stats.daysBeforeBestPrice < 0 ? 'before' : 'after';
+        console.log(`Best price is ${Math.abs(stats.daysBeforeBestPrice)} days ${direction} your search date`);
+      }
       console.log(`Data Source: Amadeus Production API`);
       console.log(`Mock Data: NONE - 100% Real Flights`);
       console.log(`${'='.repeat(80)}\n`);
@@ -475,6 +441,7 @@ export function registerRoutes(app: Express): Server {
       res.json({
         success: true,
         route: `${origin} → ${destination}`,
+        searchDate: departDate,
         priceData,
         stats,
         meta: {
@@ -484,225 +451,20 @@ export function registerRoutes(app: Express): Server {
           totalDays,
           validDataPoints: validPrices.length,
           duration,
+          dateRange: {
+            start: startDate.toISOString().split('T')[0],
+            end: endDate.toISOString().split('T')[0],
+            searchDate: departDate
+          },
           message: 'All prices fetched from Amadeus Production API - No mock data'
         }
       });
 
     } catch (error: any) {
-      console.error('Price calendar error:', error);
+      console.error('45-day price calendar error:', error);
       res.status(500).json({ 
-        message: error.message || "Failed to fetch price calendar data"
+        message: error.message || "Failed to fetch 45-day price calendar data"
       });
-    }
-  });
-
-  // ========================================
-  // VALIDATE SPECIFIC DATE FLIGHT
-  // NO MOCK DATA - AMADEUS PRODUCTION API ONLY
-  // ========================================
-  app.post("/api/flights/validate-date", async (req: Request, res) => {
-    try {
-      const { origin, destination, departDate, passengers = 1 } = req.body;
-
-      if (!origin || !destination || !departDate) {
-        return res.status(400).json({ 
-          message: "Missing required fields" 
-        });
-      }
-
-      // ============================================
-      // REQUIRE AMADEUS CREDENTIALS - NO MOCK DATA
-      // ============================================
-      const apiKey = process.env.AMADEUS_API_KEY || process.env.AMADEUS_CLIENT_ID;
-      const apiSecret = process.env.AMADEUS_API_SECRET || process.env.AMADEUS_CLIENT_SECRET;
-      
-      if (!apiKey || !apiSecret) {
-        console.error('❌ AMADEUS CREDENTIALS MISSING FOR DATE VALIDATION!');
-        return res.status(500).json({
-          success: false,
-          error: 'Amadeus API credentials not configured',
-          message: 'AMADEUS_API_KEY and AMADEUS_API_SECRET environment variables are required'
-        });
-      }
-
-      console.log(`\n🔍 Validating REAL flights for ${departDate}...`);
-      console.log(`   Route: ${origin} → ${destination}`);
-      console.log(`   API: Amadeus Production (NO MOCK DATA)`);
-
-      // ============================================
-      // REAL AMADEUS API CALL - NO MOCK FALLBACK
-      // ============================================
-      const flights = await searchFlights({
-        origin,
-        destination,
-        departDate,
-        passengers,
-        maxResults: 50
-      });
-
-      if (flights.length === 0) {
-        console.log(`   ⚠️  Amadeus returned ZERO flights for ${departDate}`);
-        console.log(`   ℹ️  This is real data - no flights available on this date\n`);
-        
-        return res.status(404).json({
-          success: false,
-          message: "No flights available for this date from Amadeus API",
-          date: departDate,
-          flights: [],
-          meta: {
-            source: 'amadeus_production',
-            totalFlights: 0
-          }
-        });
-      }
-
-      // Sort by price (cheapest first) - ALL REAL DATA
-      flights.sort((a, b) => a.price - b.price);
-
-      console.log(`   ✅ Found ${flights.length} REAL flights from Amadeus`);
-      console.log(`   💰 Price range: ₹${flights[0].price} - ₹${flights[flights.length - 1].price}\n`);
-
-      res.json({
-        success: true,
-        date: departDate,
-        flights,
-        cheapestPrice: flights[0].price,
-        meta: {
-          source: 'amadeus_production',
-          totalFlights: flights.length,
-          priceRange: {
-            min: flights[0].price,
-            max: flights[flights.length - 1].price
-          }
-        }
-      });
-
-    } catch (error: any) {
-      console.error('❌ Date validation error:', error.message);
-      console.error('   Status:', error.response?.status);
-      
-      // NO MOCK FALLBACK - Return actual error
-      res.status(500).json({ 
-        success: false,
-        error: 'Failed to validate date with Amadeus API',
-        message: error.message || "Failed to fetch real flight data",
-        details: process.env.NODE_ENV === 'development' ? error.response?.data : undefined
-      });
-    }
-  });
-
-  // ========================================
-  // GET FLIGHT DETAILS
-  // ========================================
-  app.get("/api/flights/:id", async (req: Request, res) => {
-    try {
-      const { id } = req.params;
-
-      const flightData = await retryWithDelay(async () => {
-        // TODO: Call Amadeus API or database to get flight details
-        // For now, return mock data
-        return {
-          id,
-          airline: 'IndiGo',
-          flightNumber: '6E101',
-          origin: 'DEL',
-          destination: 'BOM',
-          departureTime: '08:00',
-          arrivalTime: '10:30',
-          duration: '2h 30m',
-          price: 4500,
-          currency: 'INR',
-          availableSeats: 25,
-          class: 'Economy',
-          stops: 0,
-          departDate: new Date().toISOString().split('T')[0],
-          isValidated: true,
-          priceLastUpdated: new Date().toISOString()
-        };
-      });
-
-      res.json(flightData);
-
-    } catch (error: any) {
-      console.error('Flight details error:', error);
-      res.status(500).json({ message: "Failed to fetch flight details" });
-    }
-  });
-
-  // ========================================
-  // VALIDATE SPECIFIC FLIGHT OFFER
-  // ========================================
-  app.post("/api/flights/validate", async (req: Request, res) => {
-    try {
-      const { offerId } = req.body;
-
-      if (!offerId) {
-        return res.status(400).json({ 
-          message: "Missing required field: offerId" 
-        });
-      }
-
-      console.log(`🔄 Validating flight offer: ${offerId}`);
-
-      const validationData = await retryWithDelay(async () => {
-        // TODO: Call Amadeus Flight Offers Pricing API
-        // import { getFlightOfferPricing } from './services/amadeusService';
-        // return await getFlightOfferPricing(offerId);
-        
-        // Mock validation response
-        return {
-          offerId,
-          isAvailable: true,
-          price: 4500,
-          currency: 'INR',
-          validatedAt: new Date().toISOString(),
-          message: 'Flight is available at current price'
-        };
-      });
-
-      console.log(`✅ Flight validation successful`);
-      res.json(validationData);
-
-    } catch (error: any) {
-      console.error('Flight validation error:', error);
-      res.status(500).json({ 
-        message: "Failed to validate flight",
-        isAvailable: false
-      });
-    }
-  });
-
-  // ========================================
-  // PRICE PREDICTION
-  // ========================================
-  app.post("/api/predictions/price", async (req: Request, res) => {
-    try {
-      const { origin, destination, departDate } = req.body;
-
-      const predictionData = await retryWithDelay(async () => {
-        // TODO: Call your ML model or prediction API
-        return {
-          route: `${origin} → ${destination}`,
-          currentPrice: 4500,
-          predictedPrice: 4200,
-          confidence: 87,
-          recommendation: "book_now",
-          bestTimeToBook: "Within next 48 hours",
-          expectedSavings: 850,
-          priceDirection: "down",
-          factors: [
-            "Booking window optimal",
-            "Low demand period",
-            "Historical price trends favorable"
-          ]
-        };
-      });
-
-      res.json(predictionData);
-
-    } catch (error: any) {
-      console.error('Price prediction error:', error);
-      res.status(500).json({ message: "Failed to generate price prediction" });
     }
   });
 
@@ -717,8 +479,8 @@ export function registerRoutes(app: Express): Server {
         flightSearch: true,
         realtimeValidation: true,
         retryLogic: true,
-        priceCalendar: true,  // NEW: Price calendar feature
-        dateValidation: true   // NEW: Date validation feature
+        priceCalendar45Day: true,
+        dateValidation: true
       },
       retryConfig: {
         enabled: true,
@@ -729,6 +491,255 @@ export function registerRoutes(app: Express): Server {
     });
   });
 
+  app.post("/api/flights/price-calendar-45day", async (req: Request, res) => {
+  const startTime = Date.now();
+  
+  try {
+    const { origin, destination, departDate, passengers = 1 } = req.body;
+
+    if (!origin || !destination || !departDate) {
+      return res.status(400).json({ 
+        message: "Missing required fields: origin, destination, and departDate" 
+      });
+    }
+
+    // ============================================
+    // REQUIRE AMADEUS CREDENTIALS - NO MOCK DATA
+    // ============================================
+    const apiKey = process.env.AMADEUS_API_KEY || process.env.AMADEUS_CLIENT_ID;
+    const apiSecret = process.env.AMADEUS_API_SECRET || process.env.AMADEUS_CLIENT_SECRET;
+    
+    if (!apiKey || !apiSecret) {
+      console.error('❌ AMADEUS CREDENTIALS MISSING FOR 45-DAY PRICE CALENDAR!');
+      return res.status(500).json({
+        success: false,
+        error: 'Amadeus API credentials not configured',
+        message: 'AMADEUS_API_KEY and AMADEUS_API_SECRET environment variables are required'
+      });
+    }
+
+    console.log(`\n${'='.repeat(80)}`);
+    console.log(`📊 45-DAY PRICE CALENDAR REQUEST - REAL DATA ONLY`);
+    console.log(`${'='.repeat(80)}`);
+    console.log(`Route: ${origin} → ${destination}`);
+    console.log(`Search Date: ${departDate}`);
+    console.log(`Date Range: 30 days before + 15 days after = 45 days total`);
+    console.log(`API: Amadeus Production (NO MOCK DATA)`);
+    console.log(`${'='.repeat(80)}\n`);
+
+    // Parse the search date
+    const searchDate = new Date(departDate);
+    const priceData: Array<{
+      date: string;
+      price: number | null;
+      flightData: any | null;
+      status: 'success' | 'no_flights' | 'error';
+      daysFromSearch: number;
+    }> = [];
+
+    // Calculate date range: -30 to +15 days from search date
+    const startDate = new Date(searchDate);
+    startDate.setDate(startDate.getDate() - 30);
+    
+    const endDate = new Date(searchDate);
+    endDate.setDate(endDate.getDate() + 15);
+
+    // Fetch prices for 45 days
+    const totalDays = 45;
+    const batchSize = 3; // Process 3 dates at a time to avoid rate limits
+    
+    console.log(`🔄 Starting to fetch REAL prices for ${totalDays} dates...`);
+    console.log(`   From: ${startDate.toISOString().split('T')[0]}`);
+    console.log(`   To: ${endDate.toISOString().split('T')[0]}`);
+    console.log(`   Search Date: ${departDate}`);
+    console.log(`⚠️  This will take ~${Math.ceil(totalDays / batchSize)} batches\n`);
+    
+    for (let batch = 0; batch < Math.ceil(totalDays / batchSize); batch++) {
+      const batchPromises = [];
+      
+      for (let i = 0; i < batchSize; i++) {
+        const dayIndex = batch * batchSize + i;
+        if (dayIndex >= totalDays) break;
+        
+        const currentDate = new Date(startDate);
+        currentDate.setDate(currentDate.getDate() + dayIndex);
+        
+        // Skip dates before yesterday (Amadeus doesn't allow past dates)
+        const yesterday = new Date();
+        yesterday.setDate(yesterday.getDate() - 1);
+        yesterday.setHours(0, 0, 0, 0);
+        
+        const dateStr = currentDate.toISOString().split('T')[0];
+        const daysFromSearch = Math.round((currentDate.getTime() - searchDate.getTime()) / (1000 * 60 * 60 * 24));
+        
+        if (currentDate < yesterday) {
+          priceData.push({
+            date: dateStr,
+            price: null,
+            flightData: null,
+            status: 'error',
+            daysFromSearch
+          });
+          continue;
+        }
+        
+        // ============================================
+        // REAL AMADEUS API CALL - NO MOCK FALLBACK
+        // ============================================
+        const promise = searchFlights({
+          origin,
+          destination,
+          departDate: dateStr,
+          passengers,
+          maxResults: 20
+        })
+          .then((flights) => {
+            if (flights.length === 0) {
+              console.log(`   ⚠️  ${dateStr} (${daysFromSearch > 0 ? '+' : ''}${daysFromSearch}d): No flights`);
+              return {
+                date: dateStr,
+                price: null,
+                flightData: null,
+                status: 'no_flights' as const,
+                daysFromSearch
+              };
+            }
+            
+            // Find cheapest flight from REAL Amadeus data
+            const cheapestFlight = flights.reduce((min, flight) => 
+              flight.price < min.price ? flight : min
+            );
+            
+            const marker = dateStr === departDate ? ' 🎯' : '';
+            console.log(`   ✅ ${dateStr} (${daysFromSearch > 0 ? '+' : ''}${daysFromSearch}d): ₹${cheapestFlight.price}${marker}`);
+            
+            return {
+              date: dateStr,
+              price: cheapestFlight.price,
+              flightData: cheapestFlight,
+              status: 'success' as const,
+              daysFromSearch
+            };
+          })
+          .catch((error) => {
+            console.error(`   ❌ ${dateStr} (${daysFromSearch > 0 ? '+' : ''}${daysFromSearch}d): ${error.message}`);
+            return {
+              date: dateStr,
+              price: null,
+              flightData: null,
+              status: 'error' as const,
+              daysFromSearch
+            };
+          });
+        
+        batchPromises.push(promise);
+      }
+      
+      // Wait for this batch to complete
+      const batchResults = await Promise.all(batchPromises);
+      priceData.push(...batchResults);
+      
+      // Delay between batches to avoid rate limiting
+      if (batch < Math.ceil(totalDays / batchSize) - 1) {
+        await sleep(2000); // 2 second delay
+      }
+      
+      console.log(`\n✅ Batch ${batch + 1}/${Math.ceil(totalDays / batchSize)} complete\n`);
+    }
+
+    // Filter and calculate statistics
+    const validPrices = priceData.filter(d => d.price !== null);
+    const prices = validPrices.map(d => d.price!);
+    
+    // Find search date price
+    const searchDateData = priceData.find(d => d.date === departDate);
+    const searchDatePrice = searchDateData?.price || null;
+    
+    const stats = {
+      lowestPrice: prices.length > 0 ? Math.min(...prices) : null,
+      highestPrice: prices.length > 0 ? Math.max(...prices) : null,
+      averagePrice: prices.length > 0 ? Math.round(prices.reduce((a, b) => a + b, 0) / prices.length) : null,
+      bestDate: validPrices.length > 0 
+        ? validPrices.reduce((min, d) => d.price! < min.price! ? d : min).date
+        : null,
+      searchDatePrice,
+      potentialSavings: searchDatePrice && prices.length > 0 
+        ? Math.max(0, searchDatePrice - Math.min(...prices))
+        : null,
+      daysBeforeBestPrice: null as number | null
+    };
+
+    // Calculate days from search date to best price
+    if (stats.bestDate) {
+      const bestDateObj = new Date(stats.bestDate);
+      const daysDiff = Math.round((bestDateObj.getTime() - searchDate.getTime()) / (1000 * 60 * 60 * 24));
+      stats.daysBeforeBestPrice = daysDiff;
+    }
+
+    const duration = Date.now() - startTime;
+    
+    console.log(`\n${'='.repeat(80)}`);
+    console.log(`✅ 45-DAY PRICE CALENDAR COMPLETED - ALL REAL DATA`);
+    console.log(`${'='.repeat(80)}`);
+    console.log(`Duration: ${(duration / 1000).toFixed(1)}s`);
+    console.log(`Valid Data Points: ${validPrices.length}/${totalDays}`);
+    console.log(`Price Range: ₹${stats.lowestPrice} - ₹${stats.highestPrice}`);
+    console.log(`Search Date (${departDate}): ₹${stats.searchDatePrice || 'N/A'}`);
+    console.log(`Best Date: ${stats.bestDate} (₹${stats.lowestPrice})`);
+    if (stats.potentialSavings && stats.potentialSavings > 0) {
+      console.log(`Potential Savings: ₹${stats.potentialSavings} (${Math.round(stats.potentialSavings / (stats.searchDatePrice || 1) * 100)}%)`);
+    }
+    if (stats.daysBeforeBestPrice !== null) {
+      const direction = stats.daysBeforeBestPrice < 0 ? 'before' : 'after';
+      console.log(`Best price is ${Math.abs(stats.daysBeforeBestPrice)} days ${direction} your search date`);
+    }
+    console.log(`Data Source: Amadeus Production API`);
+    console.log(`Mock Data: NONE - 100% Real Flights`);
+    console.log(`${'='.repeat(80)}\n`);
+
+    res.json({
+      success: true,
+      route: `${origin} → ${destination}`,
+      searchDate: departDate,
+      priceData,
+      stats,
+      meta: {
+        source: 'amadeus_production',
+        isMockData: false,
+        dataQuality: 'real_time_validated',
+        totalDays,
+        validDataPoints: validPrices.length,
+        duration,
+        dateRange: {
+          start: startDate.toISOString().split('T')[0],
+          end: endDate.toISOString().split('T')[0],
+          searchDate: departDate
+        },
+        message: 'All prices fetched from Amadeus Production API - No mock data'
+      }
+    });
+
+  } catch (error: any) {
+    console.error('45-day price calendar error:', error);
+    res.status(500).json({ 
+      message: error.message || "Failed to fetch 45-day price calendar data"
+    });
+  }
+});
+
+
   const httpServer = createServer(app);
   return httpServer;
 }
+
+
+
+
+
+
+
+
+
+
+
+
