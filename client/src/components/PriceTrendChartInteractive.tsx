@@ -269,7 +269,7 @@ export default function PriceTrendChartInteractive({
           <>
             <div className="flex items-center justify-between mt-6 mb-4">
               <Badge variant="default" className="bg-green-600 hover:bg-green-700 text-white">
-                ✓ Real-Time Data • Amadeus Production
+                ✓ Real-Time Data
               </Badge>
               <Badge variant="outline" className="text-xs">
                 15 Days Forward
