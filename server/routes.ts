@@ -404,8 +404,6 @@ app.post("/api/flights/price-calendar-45day", async (req: Request, res) => {
     });
   }
 });
-
-
   const httpServer = createServer(app);
   return httpServer;
 }
