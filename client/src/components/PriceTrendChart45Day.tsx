@@ -259,7 +259,7 @@ export default function PriceTrendChart45Day({
           <>
             <div className="flex items-center gap-2 mb-4">
               <Badge variant="default" className="bg-green-600 hover:bg-green-700 text-white">
-                Real-Time Data • Amadeus Production
+                Real-Time Data
               </Badge>
               <Badge variant="outline" className="text-xs">
                 3x Faster Loading
