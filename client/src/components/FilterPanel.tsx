@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -27,7 +27,7 @@ interface Filters {
 }
 
 export default function Flights() {
-  const navigate = useNavigate();
+  const navigate = useLocation();
   const [loading, setLoading] = useState(false);
   const [flights, setFlights] = useState<any[]>([]);
   const [filteredFlights, setFilteredFlights] = useState<any[]>([]);
