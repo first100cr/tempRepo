@@ -1,5 +1,5 @@
 // client/src/components/PriceTrendChart45Day.tsx
-// FIXED VERSION - Shows full 45 days + Click functionality works
+// FINAL FIX - Handles date formatting errors properly
 
 import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
@@ -44,6 +44,7 @@ export default function PriceTrendChart45Day({
   const [priceData, setPriceData] = useState<PriceDataPoint[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedFlight, setSelectedFlight] = useState<any | null>(null);
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [stats, setStats] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -59,6 +60,7 @@ export default function PriceTrendChart45Day({
     setLoading(true);
     setError(null);
     setSelectedFlight(null);
+    setSelectedDate(null);
     
     try {
       const url = '/api/flights/price-calendar-45day';
@@ -77,7 +79,6 @@ export default function PriceTrendChart45Day({
       }
 
       console.log('Price calendar loaded:', data.priceData.length, 'days');
-      console.log('Date range:', data.meta.dateRange);
       
       setPriceData(data.priceData);
       setStats(data.stats);
@@ -90,12 +91,20 @@ export default function PriceTrendChart45Day({
     }
   };
 
-  // ✅ FIX: Proper click handler that works with chart library
+  // ✅ FIX: Safe date formatting helper
+  const formatFlightDate = (dateStr: string): string => {
+    try {
+      const date = parseISO(dateStr);
+      return format(date, 'EEEE, MMMM dd, yyyy');
+    } catch {
+      return dateStr;
+    }
+  };
+
   const handleDataPointClick = (data: any) => {
     console.log('Chart clicked:', data);
     
     if (!data || !data.activePayload || data.activePayload.length === 0) {
-      console.log('No data in click event');
       return;
     }
     
@@ -108,10 +117,12 @@ export default function PriceTrendChart45Day({
     }
     
     console.log('Setting selected flight:', clickedPoint.flightData);
+    
+    // ✅ FIX: Store both the flight data AND the date separately
     setSelectedFlight(clickedPoint.flightData);
+    setSelectedDate(clickedPoint.date);
     onDateSelect?.(clickedPoint.date, clickedPoint.flightData);
     
-    // Scroll to card
     setTimeout(() => {
       const card = document.getElementById('selected-flight-card');
       if (card) {
@@ -120,13 +131,12 @@ export default function PriceTrendChart45Day({
     }, 100);
   };
 
-  // ✅ FIX: Custom dot with click handler
   const CustomDot = (props: any) => {
-    const { cx, cy, payload, value, onClick } = props;
+    const { cx, cy, payload, value } = props;
     
     if (value === null || value === undefined) return null;
     
-    const isSelected = selectedFlight && payload.date === selectedFlight.departDate;
+    const isSelected = selectedFlight && selectedDate === payload.date;
     const isLowest = stats && value === stats.lowestPrice;
     const isSearchDate = payload.date === departDate;
     
@@ -134,6 +144,7 @@ export default function PriceTrendChart45Day({
       console.log('Dot clicked:', payload.date, payload.price);
       if (payload.flightData) {
         setSelectedFlight(payload.flightData);
+        setSelectedDate(payload.date);
         setTimeout(() => {
           document.getElementById('selected-flight-card')?.scrollIntoView({ 
             behavior: 'smooth', 
@@ -202,7 +213,6 @@ export default function PriceTrendChart45Day({
     );
   };
 
-  // ✅ FIX: Better x-axis formatting for 45 days
   const formatXAxis = (dateStr: string) => {
     try {
       const date = parseISO(dateStr);
@@ -215,7 +225,6 @@ export default function PriceTrendChart45Day({
     }
   };
 
-  // ✅ FIX: Use ALL data points (including null prices for chart spacing)
   const chartData = priceData;
   const validPriceData = priceData.filter(d => d.price !== null);
 
@@ -435,7 +444,8 @@ export default function PriceTrendChart45Day({
         </Card>
       )}
 
-      {selectedFlight && (
+      {/* ✅ FIX: Use selectedDate instead of selectedFlight.departDate */}
+      {selectedFlight && selectedDate && (
         <Card id="selected-flight-card" className="p-6 border-2 border-primary shadow-xl animate-in fade-in slide-in-from-top-4">
           <div className="flex items-center justify-between mb-4">
             <div>
@@ -444,10 +454,10 @@ export default function PriceTrendChart45Day({
                 Selected Flight
               </h4>
               <p className="text-sm text-muted-foreground">
-                {format(parseISO(selectedFlight.departDate), 'EEEE, MMMM dd, yyyy')}
+                {formatFlightDate(selectedDate)}
               </p>
             </div>
-            <Button variant="ghost" size="sm" onClick={() => setSelectedFlight(null)}>
+            <Button variant="ghost" size="sm" onClick={() => { setSelectedFlight(null); setSelectedDate(null); }}>
               <X className="h-4 w-4" />
             </Button>
           </div>
