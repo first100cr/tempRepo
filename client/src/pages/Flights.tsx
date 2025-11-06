@@ -237,20 +237,7 @@ export default function Flights() {
                 />
               )}
 
-              {/* AI PREDICTION PANEL (Optional - can remove if not needed) */}
-              {searchParams && (
-                <AIPredictionPanel
-                  route={`${searchParams.origin} → ${searchParams.destination}`}
-                  prediction={{
-                    recommendation: "book_now",
-                    confidence: 87,
-                    bestTimeToBook: "Within next 48 hours",
-                    expectedSavings: 850,
-                    priceDirection: "down"
-                  }}
-                />
-              )}
-
+              
               {/* FLIGHT RESULTS WITH PAGINATION */}
               <FlightResultsInline
                 flights={flights}
