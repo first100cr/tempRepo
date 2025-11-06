@@ -185,15 +185,10 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // ========================================
-  // OPTIMIZED 45-DAY PRICE CALENDAR
-  // Improvements:
-  // - Batch size: 6 (was 3)
-  // - Delay: 1000ms (was 2000ms)
-  // - Smart prioritization
-  // - Expected time: ~25-35 seconds (was 60-90 seconds)
-  // ========================================
- app.post("/api/flights/price-calendar-45day", async (req: Request, res) => {
+
+
+
+app.post("/api/flights/price-calendar-45day", async (req: Request, res) => {
   const startTime = Date.now();
   
   try {
@@ -409,11 +404,6 @@ export function registerRoutes(app: Express): Server {
     });
   }
 });
-
-
-
-
-
 
 
 

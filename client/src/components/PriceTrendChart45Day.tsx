@@ -1,5 +1,5 @@
 // client/src/components/PriceTrendChart45Day.tsx
-// FINAL FIX - Handles date formatting errors properly
+// ENHANCED VERSION - Full flight details in selected card
 
 import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
@@ -15,7 +15,7 @@ import {
   Area,
   AreaChart
 } from "recharts";
-import { Calendar, TrendingDown, Loader2, X, Info, Plane, Clock, ArrowRight } from "lucide-react";
+import { Calendar, TrendingDown, Loader2, X, Info, Plane, Clock, ArrowRight, MapPin, Users, Luggage } from "lucide-react";
 import { format, parseISO, isToday, isTomorrow } from "date-fns";
 
 interface PriceDataPoint {
@@ -91,11 +91,19 @@ export default function PriceTrendChart45Day({
     }
   };
 
-  // ✅ FIX: Safe date formatting helper
   const formatFlightDate = (dateStr: string): string => {
     try {
       const date = parseISO(dateStr);
       return format(date, 'EEEE, MMMM dd, yyyy');
+    } catch {
+      return dateStr;
+    }
+  };
+
+  const formatShortDate = (dateStr: string): string => {
+    try {
+      const date = parseISO(dateStr);
+      return format(date, 'dd MMM yyyy');
     } catch {
       return dateStr;
     }
@@ -118,7 +126,6 @@ export default function PriceTrendChart45Day({
     
     console.log('Setting selected flight:', clickedPoint.flightData);
     
-    // ✅ FIX: Store both the flight data AND the date separately
     setSelectedFlight(clickedPoint.flightData);
     setSelectedDate(clickedPoint.date);
     onDateSelect?.(clickedPoint.date, clickedPoint.flightData);
@@ -444,10 +451,10 @@ export default function PriceTrendChart45Day({
         </Card>
       )}
 
-      {/* ✅ FIX: Use selectedDate instead of selectedFlight.departDate */}
+      {/* ✅ ENHANCED: Full flight details card */}
       {selectedFlight && selectedDate && (
         <Card id="selected-flight-card" className="p-6 border-2 border-primary shadow-xl animate-in fade-in slide-in-from-top-4">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center justify-between mb-6">
             <div>
               <h4 className="font-semibold text-lg flex items-center gap-2">
                 <Plane className="h-5 w-5 text-primary" />
@@ -462,65 +469,139 @@ export default function PriceTrendChart45Day({
             </Button>
           </div>
 
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-4 bg-muted/50 rounded-lg">
-            <div className="flex-1 space-y-3">
+          <div className="space-y-6">
+            {/* Airline Header */}
+            <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 {selectedFlight.airlineLogo && (
                   <img 
                     src={selectedFlight.airlineLogo} 
                     alt={selectedFlight.airline}
-                    className="h-10 w-10 rounded-full"
+                    className="h-12 w-12 rounded-full"
                   />
                 )}
                 <div>
-                  <div className="font-semibold text-lg">{selectedFlight.airline}</div>
+                  <div className="font-bold text-xl">{selectedFlight.airline}</div>
                   <div className="text-sm text-muted-foreground">
                     {selectedFlight.flightNumber} • {selectedFlight.aircraft}
                   </div>
                 </div>
-                {selectedFlight.stops === 0 && (
-                  <Badge variant="secondary" className="bg-green-500/10 text-green-600">
-                    Non-stop
-                  </Badge>
-                )}
               </div>
+              {selectedFlight.stops === 0 && (
+                <Badge className="bg-green-500/10 text-green-600 border-green-600">
+                  Non-stop
+                </Badge>
+              )}
+              {selectedFlight.stops === 1 && (
+                <Badge variant="secondary" className="text-yellow-600">
+                  1 stop
+                </Badge>
+              )}
+              {selectedFlight.stops > 1 && (
+                <Badge variant="secondary" className="text-orange-600">
+                  {selectedFlight.stops} stops
+                </Badge>
+              )}
+            </div>
 
-              <div className="flex items-center gap-4">
-                <div className="text-center">
-                  <div className="text-2xl font-bold">{selectedFlight.departTime}</div>
-                  <div className="text-sm text-muted-foreground">{selectedFlight.origin}</div>
-                </div>
-                
-                <div className="flex-1 flex items-center gap-2">
-                  <div className="h-px bg-border flex-1"></div>
-                  <Clock className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm">{selectedFlight.duration}</span>
-                  <div className="h-px bg-border flex-1"></div>
-                </div>
-                
-                <div className="text-center">
-                  <div className="text-2xl font-bold">{selectedFlight.arriveTime}</div>
-                  <div className="text-sm text-muted-foreground">{selectedFlight.destination}</div>
-                </div>
+            {/* Flight Times */}
+            <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
+              <div className="flex-1">
+                <div className="text-3xl font-bold">{selectedFlight.departTime}</div>
+                <div className="text-sm text-muted-foreground mt-1">{selectedFlight.origin}</div>
+                <div className="text-xs text-muted-foreground">{formatShortDate(selectedDate)}</div>
+              </div>
+              
+              <div className="flex-1 flex flex-col items-center px-4">
+                <Clock className="h-5 w-5 text-muted-foreground mb-1" />
+                <span className="text-sm font-medium">{selectedFlight.duration}</span>
+                <div className="w-full h-px bg-border mt-2"></div>
+              </div>
+              
+              <div className="flex-1 text-right">
+                <div className="text-3xl font-bold">{selectedFlight.arriveTime}</div>
+                <div className="text-sm text-muted-foreground mt-1">{selectedFlight.destination}</div>
+                {selectedFlight.arriveDate && selectedFlight.arriveDate !== selectedDate && (
+                  <div className="text-xs text-muted-foreground">{formatShortDate(selectedFlight.arriveDate)}</div>
+                )}
               </div>
             </div>
 
-            <div className="md:text-right space-y-3 md:min-w-[180px]">
+            {/* Flight Details Grid */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {selectedFlight.cabinClass && (
+                <div className="flex items-start gap-2">
+                  <Users className="h-4 w-4 text-muted-foreground mt-0.5" />
+                  <div>
+                    <div className="text-xs text-muted-foreground">Class</div>
+                    <div className="font-medium">{selectedFlight.cabinClass}</div>
+                  </div>
+                </div>
+              )}
+              
+              {selectedFlight.availableSeats && (
+                <div className="flex items-start gap-2">
+                  <MapPin className="h-4 w-4 text-muted-foreground mt-0.5" />
+                  <div>
+                    <div className="text-xs text-muted-foreground">Seats</div>
+                    <div className="font-medium">{selectedFlight.availableSeats} available</div>
+                  </div>
+                </div>
+              )}
+              
+              {selectedFlight.baggage && (
+                <div className="flex items-start gap-2">
+                  <Luggage className="h-4 w-4 text-muted-foreground mt-0.5" />
+                  <div>
+                    <div className="text-xs text-muted-foreground">Baggage</div>
+                    <div className="font-medium">{selectedFlight.baggage}</div>
+                  </div>
+                </div>
+              )}
+              
+              {selectedFlight.stops !== undefined && (
+                <div className="flex items-start gap-2">
+                  <Plane className="h-4 w-4 text-muted-foreground mt-0.5" />
+                  <div>
+                    <div className="text-xs text-muted-foreground">Stops</div>
+                    <div className="font-medium">
+                      {selectedFlight.stops === 0 ? 'Non-stop' : `${selectedFlight.stops} stop${selectedFlight.stops > 1 ? 's' : ''}`}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Price and Book Button */}
+            <div className="flex items-center justify-between p-4 bg-primary/5 rounded-lg border border-primary/20">
               <div>
-                <div className="text-3xl font-bold text-primary">
+                <div className="text-sm text-muted-foreground mb-1">Total Price</div>
+                <div className="text-4xl font-bold text-primary">
                   ₹{selectedFlight.price.toLocaleString('en-IN')}
                 </div>
-                <div className="text-sm text-muted-foreground">per person</div>
+                <div className="text-sm text-muted-foreground mt-1">
+                  per person {passengers > 1 && `× ${passengers} = ₹${(selectedFlight.price * passengers).toLocaleString('en-IN')}`}
+                </div>
               </div>
               <Button 
-                className="w-full bg-green-600 hover:bg-green-700" 
+                className="bg-green-600 hover:bg-green-700 h-14 px-8 text-lg" 
                 size="lg"
                 onClick={handleBookNow}
               >
                 Book Now
-                <ArrowRight className="ml-2 h-4 w-4" />
+                <ArrowRight className="ml-2 h-5 w-5" />
               </Button>
             </div>
+
+            {/* Additional Info */}
+            {selectedFlight.isRefundable !== undefined && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Info className="h-4 w-4" />
+                <span>
+                  {selectedFlight.isRefundable ? 'Refundable fare' : 'Non-refundable fare'}
+                </span>
+              </div>
+            )}
           </div>
         </Card>
       )}
