@@ -1,15 +1,11 @@
-// FILE: client/src/components/PriceTrendChart45Day.tsx
-// OPTIMIZED VERSION
-// ✅ Faster loading (30s instead of 90s)
-// ✅ Instant flight card on click with "Book Now" button
+// client/src/components/PriceTrendChart45Day.tsx
+// FIXED VERSION - Shows full 45 days + Click functionality works
 
 import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { 
-  LineChart, 
-  Line, 
   XAxis, 
   YAxis, 
   CartesianGrid, 
@@ -58,10 +54,11 @@ export default function PriceTrendChart45Day({
   }, [origin, destination, departDate, passengers]);
 
   const fetchPriceCalendar = async () => {
-    console.log('📊 Fetching optimized 45-day price calendar...');
+    console.log('Fetching 45-day price calendar...');
     
     setLoading(true);
     setError(null);
+    setSelectedFlight(null);
     
     try {
       const url = '/api/flights/price-calendar-45day';
@@ -79,47 +76,72 @@ export default function PriceTrendChart45Day({
         throw new Error(data.message || 'Failed to fetch price data');
       }
 
-      console.log('✅ Price calendar loaded in', (data.meta.duration / 1000).toFixed(1), 'seconds');
+      console.log('Price calendar loaded:', data.priceData.length, 'days');
+      console.log('Date range:', data.meta.dateRange);
       
       setPriceData(data.priceData);
       setStats(data.stats);
       
     } catch (err: any) {
-      console.error('❌ Price calendar error:', err);
+      console.error('Price calendar error:', err);
       setError(err.message || 'Failed to load price calendar');
     } finally {
       setLoading(false);
     }
   };
 
-  // Handle click on data point - Show flight card immediately
-  const handleDataPointClick = (dataPoint: any) => {
-    if (!dataPoint || !dataPoint.flightData) {
-      console.log('No flight data for this date');
+  // ✅ FIX: Proper click handler that works with chart library
+  const handleDataPointClick = (data: any) => {
+    console.log('Chart clicked:', data);
+    
+    if (!data || !data.activePayload || data.activePayload.length === 0) {
+      console.log('No data in click event');
       return;
     }
     
-    console.log('✈️ Selected:', dataPoint.date, '₹' + dataPoint.price);
-    setSelectedFlight(dataPoint.flightData);
-    onDateSelect?.(dataPoint.date, dataPoint.flightData);
+    const clickedPoint = data.activePayload[0].payload;
+    console.log('Clicked point:', clickedPoint);
     
-    // Scroll to flight card
+    if (!clickedPoint.flightData) {
+      console.log('No flight data for:', clickedPoint.date);
+      return;
+    }
+    
+    console.log('Setting selected flight:', clickedPoint.flightData);
+    setSelectedFlight(clickedPoint.flightData);
+    onDateSelect?.(clickedPoint.date, clickedPoint.flightData);
+    
+    // Scroll to card
     setTimeout(() => {
-      document.getElementById('selected-flight-card')?.scrollIntoView({ 
-        behavior: 'smooth', 
-        block: 'nearest' 
-      });
+      const card = document.getElementById('selected-flight-card');
+      if (card) {
+        card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
     }, 100);
   };
 
+  // ✅ FIX: Custom dot with click handler
   const CustomDot = (props: any) => {
-    const { cx, cy, payload, value } = props;
+    const { cx, cy, payload, value, onClick } = props;
     
     if (value === null || value === undefined) return null;
     
     const isSelected = selectedFlight && payload.date === selectedFlight.departDate;
     const isLowest = stats && value === stats.lowestPrice;
     const isSearchDate = payload.date === departDate;
+    
+    const handleClick = () => {
+      console.log('Dot clicked:', payload.date, payload.price);
+      if (payload.flightData) {
+        setSelectedFlight(payload.flightData);
+        setTimeout(() => {
+          document.getElementById('selected-flight-card')?.scrollIntoView({ 
+            behavior: 'smooth', 
+            block: 'nearest' 
+          });
+        }, 100);
+      }
+    };
     
     return (
       <g>
@@ -131,7 +153,7 @@ export default function PriceTrendChart45Day({
           stroke={isSelected ? "#fff" : isSearchDate ? "#fff" : "none"}
           strokeWidth={isSelected || isSearchDate ? 2 : 0}
           style={{ cursor: 'pointer' }}
-          onClick={() => handleDataPointClick(payload)}
+          onClick={handleClick}
         />
         {isLowest && (
           <text x={cx} y={cy - 15} textAnchor="middle" fill="#10b981" fontSize="11" fontWeight="bold">
@@ -158,7 +180,7 @@ export default function PriceTrendChart45Day({
     return (
       <div className="bg-popover border border-border rounded-lg p-3 shadow-lg">
         <div className="font-medium mb-1">{format(date, 'EEE, MMM dd, yyyy')}</div>
-        {isSearchDate && <span className="text-xs text-amber-600 font-semibold">🎯 Your Search Date</span>}
+        {isSearchDate && <span className="text-xs text-amber-600 font-semibold">Your Search Date</span>}
         {!isSearchDate && (
           <div className="text-xs text-muted-foreground">
             {daysFromSearch > 0 ? `+${daysFromSearch}` : daysFromSearch} days from search
@@ -170,24 +192,31 @@ export default function PriceTrendChart45Day({
               ₹{data.price.toLocaleString('en-IN')}
             </div>
             <div className="text-xs text-green-600 font-semibold mt-1">
-              👆 Click to book this flight
+              Click to book
             </div>
           </>
         ) : (
-          <div className="text-sm text-muted-foreground mt-1">No flights available</div>
+          <div className="text-sm text-muted-foreground mt-1">No flights</div>
         )}
       </div>
     );
   };
 
+  // ✅ FIX: Better x-axis formatting for 45 days
   const formatXAxis = (dateStr: string) => {
-    const date = parseISO(dateStr);
-    if (isToday(date)) return 'Today';
-    if (isTomorrow(date)) return 'Tmrw';
-    if (dateStr === departDate) return format(date, 'MMM dd') + ' 🎯';
-    return format(date, 'MMM dd');
+    try {
+      const date = parseISO(dateStr);
+      if (isToday(date)) return 'Today';
+      if (isTomorrow(date)) return 'Tmrw';
+      if (dateStr === departDate) return format(date, 'MMM dd') + ' *';
+      return format(date, 'MMM dd');
+    } catch {
+      return dateStr;
+    }
   };
 
+  // ✅ FIX: Use ALL data points (including null prices for chart spacing)
+  const chartData = priceData;
   const validPriceData = priceData.filter(d => d.price !== null);
 
   const handleBookNow = () => {
@@ -197,7 +226,6 @@ export default function PriceTrendChart45Day({
 
   return (
     <div className="space-y-6">
-      {/* Header with Statistics */}
       <Card className="p-6 bg-gradient-to-br from-card via-card to-primary/5">
         <div className="flex items-start justify-between mb-6">
           <div>
@@ -206,7 +234,7 @@ export default function PriceTrendChart45Day({
               45-Day Price Trend
             </h3>
             <p className="text-sm text-muted-foreground">
-              {origin} → {destination} • 30 days before + 15 days after {format(parseISO(departDate), 'MMM dd')}
+              {origin} to {destination} • 30 days before + 15 days after {format(parseISO(departDate), 'MMM dd')}
             </p>
           </div>
         </div>
@@ -215,10 +243,10 @@ export default function PriceTrendChart45Day({
           <>
             <div className="flex items-center gap-2 mb-4">
               <Badge variant="default" className="bg-green-600 hover:bg-green-700 text-white">
-                ✓ Real-Time Data • Amadeus Production
+                Real-Time Data • Amadeus Production
               </Badge>
               <Badge variant="outline" className="text-xs">
-                ⚡ 3x Faster Loading
+                3x Faster Loading
               </Badge>
             </div>
             
@@ -282,7 +310,7 @@ export default function PriceTrendChart45Day({
                   <Info className="h-5 w-5 text-green-600 flex-shrink-0 mt-0.5" />
                   <div>
                     <div className="font-semibold text-green-900 dark:text-green-100">
-                      💡 Save ₹{stats.potentialSavings.toLocaleString('en-IN')} by booking on {format(parseISO(stats.bestDate), 'MMM dd')}
+                      Save ₹{stats.potentialSavings.toLocaleString('en-IN')} by booking on {format(parseISO(stats.bestDate), 'MMM dd')}
                     </div>
                     <div className="text-sm text-green-700 dark:text-green-300 mt-1">
                       Click the green dot on the chart to book instantly
@@ -295,18 +323,16 @@ export default function PriceTrendChart45Day({
         )}
       </Card>
 
-      {/* Loading */}
       {loading && (
         <Card className="p-12">
           <div className="flex flex-col items-center justify-center">
             <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-            <p className="text-lg font-medium">Analyzing 45 days...</p>
-            <p className="text-sm text-muted-foreground mt-2">⚡ 3x faster loading!</p>
+            <p className="text-lg font-medium">Analyzing 45 days of prices...</p>
+            <p className="text-sm text-muted-foreground mt-2">This will take about 30 seconds</p>
           </div>
         </Card>
       )}
 
-      {/* Error */}
       {error && !loading && (
         <Card className="p-6 border-red-500">
           <div className="flex items-center gap-3 text-red-600">
@@ -322,14 +348,13 @@ export default function PriceTrendChart45Day({
         </Card>
       )}
 
-      {/* Chart */}
-      {!loading && validPriceData.length > 0 && (
+      {!loading && chartData.length > 0 && (
         <Card className="p-6">
           <div className="mb-4 flex items-center justify-between">
             <div>
               <h4 className="font-semibold">Interactive Price Comparison</h4>
               <p className="text-xs text-muted-foreground">
-                Click any point to book that flight
+                Click any point to book that flight • Showing {chartData.length} days
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -344,7 +369,10 @@ export default function PriceTrendChart45Day({
 
           <div className="h-[400px] w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={validPriceData}>
+              <AreaChart 
+                data={chartData}
+                onClick={handleDataPointClick}
+              >
                 <defs>
                   <linearGradient id="colorPrice" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3} />
@@ -359,6 +387,7 @@ export default function PriceTrendChart45Day({
                   textAnchor="end"
                   height={80}
                   tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }}
+                  interval="preserveStartEnd"
                 />
                 <YAxis 
                   tickFormatter={(value) => `₹${value}`}
@@ -379,7 +408,8 @@ export default function PriceTrendChart45Day({
                   strokeWidth={2}
                   fill="url(#colorPrice)"
                   dot={<CustomDot />}
-                  activeDot={{ r: 8 }}
+                  activeDot={{ r: 8, onClick: handleDataPointClick }}
+                  connectNulls={false}
                 />
               </AreaChart>
             </ResponsiveContainer>
@@ -399,13 +429,12 @@ export default function PriceTrendChart45Day({
               <span>Selected</span>
             </div>
             <div className="flex items-center gap-2 ml-auto">
-              <span>👆 Click to book</span>
+              <span>Click any dot to book</span>
             </div>
           </div>
         </Card>
       )}
 
-      {/* FLIGHT CARD - Appears when user clicks a point */}
       {selectedFlight && (
         <Card id="selected-flight-card" className="p-6 border-2 border-primary shadow-xl animate-in fade-in slide-in-from-top-4">
           <div className="flex items-center justify-between mb-4">
@@ -424,7 +453,6 @@ export default function PriceTrendChart45Day({
           </div>
 
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-4 bg-muted/50 rounded-lg">
-            {/* Flight Info */}
             <div className="flex-1 space-y-3">
               <div className="flex items-center gap-3">
                 {selectedFlight.airlineLogo && (
@@ -467,7 +495,6 @@ export default function PriceTrendChart45Day({
               </div>
             </div>
 
-            {/* Price and Book Button */}
             <div className="md:text-right space-y-3 md:min-w-[180px]">
               <div>
                 <div className="text-3xl font-bold text-primary">
@@ -490,15 +517,3 @@ export default function PriceTrendChart45Day({
     </div>
   );
 }
-
-
-
-
-
-
-
-
-
-
-
-

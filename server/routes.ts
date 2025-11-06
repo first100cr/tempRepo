@@ -193,239 +193,222 @@ export function registerRoutes(app: Express): Server {
   // - Smart prioritization
   // - Expected time: ~25-35 seconds (was 60-90 seconds)
   // ========================================
-  app.post("/api/flights/price-calendar-45day", async (req: Request, res) => {
-    const startTime = Date.now();
+ app.post("/api/flights/price-calendar-45day", async (req: Request, res) => {
+  const startTime = Date.now();
+  
+  try {
+    const { origin, destination, departDate, passengers = 1 } = req.body;
+
+    if (!origin || !destination || !departDate) {
+      return res.status(400).json({ 
+        message: "Missing required fields: origin, destination, and departDate" 
+      });
+    }
+
+    const apiKey = process.env.AMADEUS_API_KEY || process.env.AMADEUS_CLIENT_ID;
+    const apiSecret = process.env.AMADEUS_API_SECRET || process.env.AMADEUS_CLIENT_SECRET;
     
-    try {
-      const { origin, destination, departDate, passengers = 1 } = req.body;
+    if (!apiKey || !apiSecret) {
+      console.error('❌ AMADEUS CREDENTIALS MISSING!');
+      return res.status(500).json({
+        success: false,
+        error: 'Amadeus API credentials not configured'
+      });
+    }
 
-      if (!origin || !destination || !departDate) {
-        return res.status(400).json({ 
-          message: "Missing required fields: origin, destination, and departDate" 
-        });
-      }
+    console.log(`\n${'='.repeat(80)}`);
+    console.log(`📊 45-DAY PRICE CALENDAR - OPTIMIZED`);
+    console.log(`${'='.repeat(80)}`);
+    console.log(`Route: ${origin} → ${destination}`);
+    console.log(`Search Date: ${departDate}`);
+    console.log(`${'='.repeat(80)}\n`);
 
-      const apiKey = process.env.AMADEUS_API_KEY || process.env.AMADEUS_CLIENT_ID;
-      const apiSecret = process.env.AMADEUS_API_SECRET || process.env.AMADEUS_CLIENT_SECRET;
+    // ✅ FIX: Parse date correctly and ensure we get exactly 45 days
+    const searchDate = new Date(departDate + 'T00:00:00');
+    const priceData: Array<{
+      date: string;
+      price: number | null;
+      flightData: any | null;
+      status: 'success' | 'no_flights' | 'error';
+      daysFromSearch: number;
+    }> = [];
+
+    // ✅ FIX: Calculate exact date range - 30 days before and 15 days after
+    const startDate = new Date(searchDate);
+    startDate.setDate(startDate.getDate() - 30);
+    
+    const endDate = new Date(searchDate);
+    endDate.setDate(endDate.getDate() + 15);
+
+    const totalDays = 46; // Include both start and end dates (30 before + search date + 15 after)
+    const batchSize = 8;
+    
+    console.log(`🔄 Fetching ${totalDays} days of data:`);
+    console.log(`   Start: ${startDate.toISOString().split('T')[0]}`);
+    console.log(`   Search: ${departDate}`);
+    console.log(`   End: ${endDate.toISOString().split('T')[0]}`);
+    console.log(`   Range: -30 to +15 days\n`);
+    
+    // ✅ FIX: Loop through all days from start to end
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    yesterday.setHours(0, 0, 0, 0);
+    
+    for (let batch = 0; batch < Math.ceil(totalDays / batchSize); batch++) {
+      const batchPromises = [];
       
-      if (!apiKey || !apiSecret) {
-        return res.status(500).json({
-          success: false,
-          error: 'Amadeus API credentials not configured'
-        });
-      }
-
-      console.log(`\n${'='.repeat(80)}`);
-      console.log(`📊 45-DAY PRICE CALENDAR - OPTIMIZED`);
-      console.log(`${'='.repeat(80)}`);
-      console.log(`Route: ${origin} → ${destination}`);
-      console.log(`Search Date: ${departDate}`);
-      console.log(`Optimization: Smart batching + Priority loading`);
-      console.log(`${'='.repeat(80)}\n`);
-
-      const searchDate = new Date(departDate);
-      const priceData: Array<{
-        date: string;
-        price: number | null;
-        flightData: any | null;
-        status: 'success' | 'no_flights' | 'error';
-        daysFromSearch: number;
-      }> = [];
-
-      const startDate = new Date(searchDate);
-      startDate.setDate(startDate.getDate() - 30);
-      
-      const yesterday = new Date();
-      yesterday.setDate(yesterday.getDate() - 1);
-      yesterday.setHours(0, 0, 0, 0);
-
-      const allDates: Array<{ date: string; daysFromSearch: number; priority: number }> = [];
-      
-      for (let i = 0; i < 45; i++) {
+      for (let i = 0; i < batchSize; i++) {
+        const dayIndex = batch * batchSize + i;
+        if (dayIndex >= totalDays) break;
+        
+        // ✅ FIX: Calculate current date from start date
         const currentDate = new Date(startDate);
-        currentDate.setDate(currentDate.getDate() + i);
+        currentDate.setDate(currentDate.getDate() + dayIndex);
         
-        if (currentDate >= yesterday) {
-          const dateStr = currentDate.toISOString().split('T')[0];
-          const daysFromSearch = Math.round((currentDate.getTime() - searchDate.getTime()) / (1000 * 60 * 60 * 24));
-          const priority = Math.abs(daysFromSearch);
-          
-          allDates.push({ date: dateStr, daysFromSearch, priority });
+        const dateStr = currentDate.toISOString().split('T')[0];
+        const daysFromSearch = Math.round((currentDate.getTime() - searchDate.getTime()) / (1000 * 60 * 60 * 24));
+        
+        // Skip past dates
+        if (currentDate < yesterday) {
+          priceData.push({
+            date: dateStr,
+            price: null,
+            flightData: null,
+            status: 'error',
+            daysFromSearch
+          });
+          continue;
         }
-      }
-
-      allDates.sort((a, b) => a.priority - b.priority);
-
-      const totalDays = allDates.length;
-      const batchSize = 6; // INCREASED from 3
-      const delayMs = 1000; // REDUCED from 2000ms
-      
-      console.log(`🚀 OPTIMIZED BATCHING:`);
-      console.log(`   Batch size: ${batchSize} dates (was 3)`);
-      console.log(`   Delay: ${delayMs}ms (was 2000ms)`);
-      console.log(`   Expected time: ~${Math.ceil(totalDays / batchSize) * (delayMs / 1000)}s\n`);
-      
-      for (let batch = 0; batch < Math.ceil(totalDays / batchSize); batch++) {
-        const batchPromises = [];
-        const batchStartTime = Date.now();
         
-        for (let i = 0; i < batchSize; i++) {
-          const dateIndex = batch * batchSize + i;
-          if (dateIndex >= totalDays) break;
-          
-          const { date: dateStr, daysFromSearch } = allDates[dateIndex];
-          
-          const promise = searchFlights({
-            origin,
-            destination,
-            departDate: dateStr,
-            passengers,
-            maxResults: 20
-          })
-            .then((flights) => {
-              if (flights.length === 0) {
-                console.log(`   ⚠️  ${dateStr} (${daysFromSearch > 0 ? '+' : ''}${daysFromSearch}d): No flights`);
-                return {
-                  date: dateStr,
-                  price: null,
-                  flightData: null,
-                  status: 'no_flights' as const,
-                  daysFromSearch
-                };
-              }
-              
-              const cheapestFlight = flights.reduce((min, flight) => 
-                flight.price < min.price ? flight : min
-              );
-              
-              const marker = dateStr === departDate ? ' 🎯' : '';
-              console.log(`   ✅ ${dateStr} (${daysFromSearch > 0 ? '+' : ''}${daysFromSearch}d): ₹${cheapestFlight.price}${marker}`);
-              
-              return {
-                date: dateStr,
-                price: cheapestFlight.price,
-                flightData: cheapestFlight,
-                status: 'success' as const,
-                daysFromSearch
-              };
-            })
-            .catch((error) => {
-              console.error(`   ❌ ${dateStr}: ${error.message}`);
+        const promise = searchFlights({
+          origin,
+          destination,
+          departDate: dateStr,
+          passengers,
+          maxResults: 10
+        })
+          .then((flights) => {
+            if (flights.length === 0) {
+              console.log(`   ⚠️  ${dateStr} (${daysFromSearch > 0 ? '+' : ''}${daysFromSearch}d): No flights`);
               return {
                 date: dateStr,
                 price: null,
                 flightData: null,
-                status: 'error' as const,
+                status: 'no_flights' as const,
                 daysFromSearch
               };
-            });
-          
-          batchPromises.push(promise);
-        }
+            }
+            
+            // ✅ FIX: Find cheapest and store FULL flight data for click functionality
+            const cheapestFlight = flights.reduce((min, flight) => 
+              flight.price < min.price ? flight : min
+            );
+            
+            const marker = dateStr === departDate ? ' 🎯' : '';
+            console.log(`   ✅ ${dateStr} (${daysFromSearch > 0 ? '+' : ''}${daysFromSearch}d): ₹${cheapestFlight.price}${marker}`);
+            
+            return {
+              date: dateStr,
+              price: cheapestFlight.price,
+              flightData: cheapestFlight, // ✅ FIX: Store complete flight object
+              status: 'success' as const,
+              daysFromSearch
+            };
+          })
+          .catch((error) => {
+            console.error(`   ❌ ${dateStr}: ${error.message}`);
+            return {
+              date: dateStr,
+              price: null,
+              flightData: null,
+              status: 'error' as const,
+              daysFromSearch
+            };
+          });
         
-        const batchResults = await Promise.all(batchPromises);
-        priceData.push(...batchResults);
-        
-        const batchDuration = Date.now() - batchStartTime;
-        const progress = Math.round((priceData.length / totalDays) * 100);
-        
-        console.log(`   📊 Batch ${batch + 1}/${Math.ceil(totalDays / batchSize)} (${batchDuration}ms) - ${progress}%\n`);
-        
-        if (batch < Math.ceil(totalDays / batchSize) - 1) {
-          await sleep(delayMs);
-        }
+        batchPromises.push(promise);
       }
-
-      priceData.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-
-      const validPrices = priceData.filter(d => d.price !== null);
-      const prices = validPrices.map(d => d.price!);
       
-      const searchDateData = priceData.find(d => d.date === departDate);
-      const searchDatePrice = searchDateData?.price || null;
+      const batchResults = await Promise.all(batchPromises);
+      priceData.push(...batchResults);
       
-      const stats = {
-        lowestPrice: prices.length > 0 ? Math.min(...prices) : null,
-        highestPrice: prices.length > 0 ? Math.max(...prices) : null,
-        averagePrice: prices.length > 0 ? Math.round(prices.reduce((a, b) => a + b, 0) / prices.length) : null,
-        bestDate: validPrices.length > 0 
-          ? validPrices.reduce((min, d) => d.price! < min.price! ? d : min).date
-          : null,
-        searchDatePrice,
-        potentialSavings: searchDatePrice && prices.length > 0 
-          ? Math.max(0, searchDatePrice - Math.min(...prices))
-          : null,
-        daysBeforeBestPrice: null as number | null
-      };
-
-      if (stats.bestDate) {
-        const bestDateObj = new Date(stats.bestDate);
-        const daysDiff = Math.round((bestDateObj.getTime() - searchDate.getTime()) / (1000 * 60 * 60 * 24));
-        stats.daysBeforeBestPrice = daysDiff;
+      if (batch < Math.ceil(totalDays / batchSize) - 1) {
+        await sleep(500);
       }
-
-      const duration = Date.now() - startTime;
-      const improvement = Math.round((1 - (duration / (Math.ceil(totalDays / 3) * 2000))) * 100);
       
-      console.log(`\n${'='.repeat(80)}`);
-      console.log(`✅ COMPLETED - OPTIMIZED`);
-      console.log(`${'='.repeat(80)}`);
-      console.log(`Duration: ${(duration / 1000).toFixed(1)}s`);
-      console.log(`Improvement: ~${improvement}% faster`);
-      console.log(`Valid Data: ${validPrices.length}/${totalDays}`);
-      console.log(`Best: ${stats.bestDate} (₹${stats.lowestPrice})`);
-      console.log(`${'='.repeat(80)}\n`);
-
-      res.json({
-        success: true,
-        route: `${origin} → ${destination}`,
-        searchDate: departDate,
-        priceData,
-        stats,
-        meta: {
-          source: 'amadeus_production',
-          isMockData: false,
-          dataQuality: 'real_time_validated',
-          totalDays,
-          validDataPoints: validPrices.length,
-          duration,
-          optimization: {
-            batchSize,
-            delayMs,
-            improvement: `${improvement}% faster`,
-            priorityLoading: true
-          },
-          dateRange: {
-            start: startDate.toISOString().split('T')[0],
-            end: new Date(searchDate.getTime() + 15 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-            searchDate: departDate
-          },
-          message: 'Optimized loading - Search date area loaded first'
-        }
-      });
-
-    } catch (error: any) {
-      console.error('Price calendar error:', error);
-      res.status(500).json({ 
-        message: error.message || "Failed to fetch price calendar"
-      });
+      const progress = ((batch + 1) / Math.ceil(totalDays / batchSize) * 100).toFixed(0);
+      console.log(`⚡ Batch ${batch + 1}/${Math.ceil(totalDays / batchSize)} (${progress}%)\n`);
     }
-  });
 
-  // ========================================
-  // HEALTH CHECK
-  // ========================================
-  app.get("/api/health", (req: Request, res) => {
-    res.json({ 
-      status: "healthy",
-      timestamp: new Date().toISOString(),
-      features: {
-        flightSearch: true,
-        priceCalendar45Day: true,
-        optimizedLoading: true
+    const validPrices = priceData.filter(d => d.price !== null);
+    const prices = validPrices.map(d => d.price!);
+    
+    const searchDateData = priceData.find(d => d.date === departDate);
+    const searchDatePrice = searchDateData?.price || null;
+    
+    const stats = {
+      lowestPrice: prices.length > 0 ? Math.min(...prices) : null,
+      highestPrice: prices.length > 0 ? Math.max(...prices) : null,
+      averagePrice: prices.length > 0 ? Math.round(prices.reduce((a, b) => a + b, 0) / prices.length) : null,
+      bestDate: validPrices.length > 0 
+        ? validPrices.reduce((min, d) => d.price! < min.price! ? d : min).date
+        : null,
+      searchDatePrice,
+      potentialSavings: searchDatePrice && prices.length > 0 
+        ? Math.max(0, searchDatePrice - Math.min(...prices))
+        : null,
+      daysBeforeBestPrice: null as number | null
+    };
+
+    if (stats.bestDate) {
+      const bestDateObj = new Date(stats.bestDate);
+      const daysDiff = Math.round((bestDateObj.getTime() - searchDate.getTime()) / (1000 * 60 * 60 * 24));
+      stats.daysBeforeBestPrice = daysDiff;
+    }
+
+    const duration = Date.now() - startTime;
+    
+    console.log(`\n${'='.repeat(80)}`);
+    console.log(`✅ COMPLETED - FULL 45 DAYS`);
+    console.log(`${'='.repeat(80)}`);
+    console.log(`Duration: ${(duration / 1000).toFixed(1)}s`);
+    console.log(`Data Points: ${priceData.length} days`);
+    console.log(`Valid Prices: ${validPrices.length} days`);
+    console.log(`Date Range: ${startDate.toISOString().split('T')[0]} to ${endDate.toISOString().split('T')[0]}`);
+    console.log(`Price Range: ₹${stats.lowestPrice} - ₹${stats.highestPrice}`);
+    console.log(`Best: ${stats.bestDate} (₹${stats.lowestPrice})`);
+    console.log(`${'='.repeat(80)}\n`);
+
+    res.json({
+      success: true,
+      route: `${origin} → ${destination}`,
+      searchDate: departDate,
+      priceData, // ✅ FIX: All data points with flight data included
+      stats,
+      meta: {
+        source: 'amadeus_production',
+        isMockData: false,
+        totalDays: priceData.length,
+        validDataPoints: validPrices.length,
+        duration,
+        optimized: true,
+        dateRange: {
+          start: startDate.toISOString().split('T')[0],
+          end: endDate.toISOString().split('T')[0],
+          searchDate: departDate,
+          daysBefore: 30,
+          daysAfter: 15
+        }
       }
     });
-  });
+
+  } catch (error: any) {
+    console.error('Error:', error);
+    res.status(500).json({ 
+      message: error.message || "Failed to fetch price calendar"
+    });
+  }
+});
 
   const httpServer = createServer(app);
   return httpServer;
