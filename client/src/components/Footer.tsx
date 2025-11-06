@@ -92,10 +92,10 @@ export default function Footer() {
                   Press
                 </button>
               </li>
-              <li>
-                <button className="text-muted-foreground hover:text-primary transition-colors text-sm" data-testid="footer-link-blog">
-                  Blog
-                </button>
+               <li>
+                  <a href="https://skailinker.blogspot.com" target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-primary transition-colors text-sm" data-testid="footer-link-flights">
+                    Blogs
+                  </a>
               </li>
             </ul>
           </div>
