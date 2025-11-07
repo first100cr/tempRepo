@@ -65,7 +65,7 @@ export default function FlightSearchForm({
   onSearchError,
   initialValues
 }: FlightSearchFormProps) {
-  const [tripType, setTripType] = useState(initialValues?.tripType || "round-trip");
+  const [tripType, setTripType] = useState(initialValues?.tripType || "one-way");
   const [origin, setOrigin] = useState(initialValues?.origin || "");
   const [destination, setDestination] = useState(initialValues?.destination || "");
   const [departDate, setDepartDate] = useState<Date | undefined>(initialValues?.departDate 
