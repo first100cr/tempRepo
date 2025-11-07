@@ -447,8 +447,12 @@ function generateAffiliateLink(offer: any): string | null {
   const destination = offer.itineraries[0].segments.slice(-1)[0].arrival.iataCode;
   const departureDate = offer.itineraries[0].segments[0].departure.at.split('T')[0];
 
-  return `${baseUrl}?trip=oneway&leg1=from:${origin},to:${destination},departure:${departureDate}TANYT&passengers=adults:1&options=cabinclass:economy&mode=search&adref=${publisherId}`;
+  // Using pwaDialog param to open flight details directly on Expedia
+  const pwaDialog = "FLIGHTS_DETAILS_AND_FARES-index-1-leg-0-fsr";
+
+  return `${baseUrl}?trip=oneway&leg1=from:${origin},to:${destination},departure:${departureDate}TANYT&passengers=adults:1&options=cabinclass:economy&mode=search&adref=${publisherId}&pwaDialog=${pwaDialog}`;
 }
+
 
 
 
