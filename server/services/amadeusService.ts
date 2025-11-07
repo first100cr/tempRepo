@@ -353,7 +353,7 @@ function transformFlight(offer: any, dictionaries?: any): FlightOffer | null {
       currency: offer.price?.currency || 'INR',
       aircraft: aircraftName,
       baggage: getBaggageInfo(offer.travelerPricings?.[0]),
-      bookingUrl: generateAffiliateLink(offer,offer.id)!,
+      bookingUrl: generateAffiliateLink(offer)!,
       cabinClass: offer.travelerPricings?.[0]?.fareDetailsBySegment?.[0]?.cabin || 'ECONOMY',
       availableSeats: offer.numberOfBookableSeats || 9,
       segments: itinerary.segments.map((seg: any) => ({
@@ -437,15 +437,10 @@ function getBaggageInfo(travelerPricing: any): string {
 //   const affiliateId = process.env.AFFILIATE_ID || 'skailinker';
 //   return `https://www.skyscanner.co.in/transport/flights/${origin.toLowerCase()}/${destination.toLowerCase()}?associateid=${affiliateId}`;
 // }
-function generateAffiliateLink(offers: any[], selectedOfferId: string): string | null {
-  const offer = offers.find(o => o.id === selectedOfferId);
+function generateAffiliateLink(offer: any): string | null {
   if (!offer) return null;
 
-  // Add fallback or force non-null assertion here:
   const publisherId = process.env.EXPEDIA_AFFILIATE_ID ?? 'YOUR_FALLBACK_PUBLISHER_ID'; 
-  // or
-  // const publisherId = process.env.EXPEDIA_AFFILIATE_ID!; // if you are sure it's never null
-
   const baseUrl = "https://www.expedia.com/Flights-Search";
 
   const origin = offer.itineraries[0].segments[0].departure.iataCode;
@@ -454,6 +449,7 @@ function generateAffiliateLink(offers: any[], selectedOfferId: string): string |
 
   return `${baseUrl}?trip=oneway&leg1=from:${origin},to:${destination},departure:${departureDate}TANYT&passengers=adults:1&options=cabinclass:economy&mode=search&adref=${publisherId}`;
 }
+
 
 
 
