@@ -353,7 +353,7 @@ function transformFlight(offer: any, dictionaries?: any): FlightOffer | null {
       currency: offer.price?.currency || 'INR',
       aircraft: aircraftName,
       baggage: getBaggageInfo(offer.travelerPricings?.[0]),
-      bookingUrl: generateAffiliateLink(offer)!,
+      bookingUrl: generateAffiliateLink(offer, { passengers: offer?.travelerPricings?.length }) || "",
       cabinClass: offer.travelerPricings?.[0]?.fareDetailsBySegment?.[0]?.cabin || 'ECONOMY',
       availableSeats: offer.numberOfBookableSeats || 9,
       segments: itinerary.segments.map((seg: any) => ({
@@ -437,26 +437,39 @@ function getBaggageInfo(travelerPricing: any): string {
 //   const affiliateId = process.env.AFFILIATE_ID || 'skailinker';
 //   return `https://www.skyscanner.co.in/transport/flights/${origin.toLowerCase()}/${destination.toLowerCase()}?associateid=${affiliateId}`;
 // }
-function generateAffiliateLink(offer: any): string | null {
+function generateAffiliateLink(offer: any, searchParams?: { passengers?: number }): string | null {
   if (!offer) return null;
 
   const publisherId = process.env.EXPEDIA_AFFILIATE_ID ?? 'YOUR_FALLBACK_PUBLISHER_ID';
   const baseUrl = "https://www.expedia.com/Flights-Search";
-  const origin = offer.itineraries[0].segments[0].departure.iataCode;
-  const destination = offer.itineraries[0].segments.slice(-1)[0].arrival.iataCode;
-  const departureDate = offer.itineraries[0].segments[0].departure.at.split('T')[0];
-  const cabinClass = "economy";
+
+  const origin = offer.itineraries?.[0]?.segments?.[0]?.departure?.iataCode;
+  const destination = offer.itineraries?.[0]?.segments?.slice(-1)?.[0]?.arrival?.iataCode;
+  const departureDate = offer.itineraries?.[0]?.segments?.[0]?.departure?.at?.split('T')[0];
+
+  // ✅ Safely detect passenger count
+  const passengersCount =
+    searchParams?.passengers ??
+    offer.travelerPricings?.length ??
+    1; // fallback if missing
+
+  const cabinClass =
+    offer.travelerPricings?.[0]?.fareDetailsBySegment?.[0]?.cabin?.toLowerCase() ||
+    "economy";
+
   const pwaDialog = "FLIGHTS_DETAILS_AND_FARES-index-1-leg-0-fsr";
-  const passengersParam = `adults:${offer.travelerPricing.passengers}`;
-  
-  return `${baseUrl}?trip=oneway` +
+
+  return (
+    `${baseUrl}?trip=oneway` +
     `&leg1=from:${origin},to:${destination},departure:${departureDate}TANYT` +
     `&options=cabinclass:${cabinClass}` +
-    `&passengers=${passengersParam}` +
+    `&passengers=adults:${passengersCount}` +
     `&mode=search` +
     `&adref=${publisherId}` +
-    `&pwaDialog=${pwaDialog}`;
+    `&pwaDialog=${pwaDialog}`
+  );
 }
+
 
 
 
