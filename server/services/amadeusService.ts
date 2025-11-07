@@ -353,7 +353,7 @@ function transformFlight(offer: any, dictionaries?: any): FlightOffer | null {
       currency: offer.price?.currency || 'INR',
       aircraft: aircraftName,
       baggage: getBaggageInfo(offer.travelerPricings?.[0]),
-      bookingUrl: generateAffiliateLink(offer.id, firstSegment.departure.iataCode, lastSegment.arrival.iataCode),
+      bookingUrl: generateAffiliateLink(offer,offer.id),
       cabinClass: offer.travelerPricings?.[0]?.fareDetailsBySegment?.[0]?.cabin || 'ECONOMY',
       availableSeats: offer.numberOfBookableSeats || 9,
       segments: itinerary.segments.map((seg: any) => ({
@@ -438,10 +438,20 @@ function getBaggageInfo(travelerPricing: any): string {
 //   return `https://www.skyscanner.co.in/transport/flights/${origin.toLowerCase()}/${destination.toLowerCase()}?associateid=${affiliateId}`;
 // }
 
-function generateAffiliateLink(origin: string, destination: string, departureDate: string): string {
-  const affiliateId = process.env.EXPEDIA_AFFILIATE_ID || 'YOUR_EXPEDIA_ID';
-  return `https://www.expedia.com/Flights-Search?trip=oneway&leg1=from:${origin},to:${destination},departure:${departureDate}TANYT&passengers=adults:1&options=cabinclass:economy&mode=search&affiliateId=${affiliateId}`;
+function generateAffiliateLink(offers: any[], selectedOfferId: string): string | null {
+  const offer = offers.find(o => o.id === selectedOfferId);
+  if (!offer) return null;
+
+  const publisherId = process.env.EXPEDIA_AFFILIATE_ID;
+  const baseUrl = "https://www.expedia.com/Flights-Search";
+
+  const origin = offer.itineraries[0].segments[0].departure.iataCode;
+  const destination = offer.itineraries[0].segments.slice(-1)[0].arrival.iataCode;
+  const departureDate = offer.itineraries[0].segments[0].departure.at.split('T')[0];
+
+  return `${baseUrl}?trip=oneway&leg1=from:${origin},to:${destination},departure:${departureDate}TANYT&passengers=adults:1&options=cabinclass:economy&mode=search&adref=${publisherId}`;
 }
+
 
 export async function testAmadeusConnection(): Promise<boolean> {
   try {
