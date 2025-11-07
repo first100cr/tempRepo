@@ -440,18 +440,29 @@ function getBaggageInfo(travelerPricing: any): string {
 function generateAffiliateLink(offer: any): string | null {
   if (!offer) return null;
 
-  const publisherId = process.env.EXPEDIA_AFFILIATE_ID ?? 'YOUR_FALLBACK_PUBLISHER_ID'; 
+  const publisherId = process.env.EXPEDIA_AFFILIATE_ID ?? 'YOUR_FALLBACK_PUBLISHER_ID';
   const baseUrl = "https://www.expedia.com/Flights-Search";
 
   const origin = offer.itineraries[0].segments[0].departure.iataCode;
   const destination = offer.itineraries[0].segments.slice(-1)[0].arrival.iataCode;
   const departureDate = offer.itineraries[0].segments[0].departure.at.split('T')[0];
 
-  // Using pwaDialog param to open flight details directly on Expedia
+  // Number of passengers and cabin class can be parameterized as needed
+  const passengers = "adults:1";
+  const cabinClass = "economy";
+
+  // pwaDialog param to open flight details and fare dialog on Expedia
   const pwaDialog = "FLIGHTS_DETAILS_AND_FARES-index-1-leg-0-fsr";
 
-  return `${baseUrl}?trip=oneway&leg1=from:${origin},to:${destination},departure:${departureDate}TANYT&passengers=adults:1&options=cabinclass:economy&mode=search&adref=${publisherId}&pwaDialog=${pwaDialog}`;
+  return `${baseUrl}?trip=oneway` +
+         `&leg1=from:${origin},to:${destination},departure:${departureDate}TANYT` +
+         `&passengers=${passengers}` +
+         `&options=cabinclass:${cabinClass}` +
+         `&mode=search` +
+         `&adref=${publisherId}` +
+         `&pwaDialog=${pwaDialog}`;
 }
+
 
 
 
