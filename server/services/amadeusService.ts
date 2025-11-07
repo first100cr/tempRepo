@@ -353,7 +353,7 @@ function transformFlight(offer: any, dictionaries?: any): FlightOffer | null {
       currency: offer.price?.currency || 'INR',
       aircraft: aircraftName,
       baggage: getBaggageInfo(offer.travelerPricings?.[0]),
-      bookingUrl: generateAffiliateLink(offer,offer.id),
+      bookingUrl: generateAffiliateLink(offer,offer.id) || "",
       cabinClass: offer.travelerPricings?.[0]?.fareDetailsBySegment?.[0]?.cabin || 'ECONOMY',
       availableSeats: offer.numberOfBookableSeats || 9,
       segments: itinerary.segments.map((seg: any) => ({
