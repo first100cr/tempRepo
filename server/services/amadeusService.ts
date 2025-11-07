@@ -437,12 +437,15 @@ function getBaggageInfo(travelerPricing: any): string {
 //   const affiliateId = process.env.AFFILIATE_ID || 'skailinker';
 //   return `https://www.skyscanner.co.in/transport/flights/${origin.toLowerCase()}/${destination.toLowerCase()}?associateid=${affiliateId}`;
 // }
-
 function generateAffiliateLink(offers: any[], selectedOfferId: string): string | null {
   const offer = offers.find(o => o.id === selectedOfferId);
   if (!offer) return null;
 
-  const publisherId = process.env.EXPEDIA_AFFILIATE_ID;
+  // Add fallback or force non-null assertion here:
+  const publisherId = process.env.EXPEDIA_AFFILIATE_ID ?? 'YOUR_FALLBACK_PUBLISHER_ID'; 
+  // or
+  // const publisherId = process.env.EXPEDIA_AFFILIATE_ID!; // if you are sure it's never null
+
   const baseUrl = "https://www.expedia.com/Flights-Search";
 
   const origin = offer.itineraries[0].segments[0].departure.iataCode;
@@ -451,6 +454,7 @@ function generateAffiliateLink(offers: any[], selectedOfferId: string): string |
 
   return `${baseUrl}?trip=oneway&leg1=from:${origin},to:${destination},departure:${departureDate}TANYT&passengers=adults:1&options=cabinclass:economy&mode=search&adref=${publisherId}`;
 }
+
 
 
 export async function testAmadeusConnection(): Promise<boolean> {
