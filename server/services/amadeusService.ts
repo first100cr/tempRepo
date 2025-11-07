@@ -437,7 +437,7 @@ function getBaggageInfo(travelerPricing: any): string {
 //   const affiliateId = process.env.AFFILIATE_ID || 'skailinker';
 //   return `https://www.skyscanner.co.in/transport/flights/${origin.toLowerCase()}/${destination.toLowerCase()}?associateid=${affiliateId}`;
 // }
-function generateAffiliateLink(offer: any): string | null {
+function generateAffiliateLink(offer: any, passengersCount: number = 1): string | null {
   if (!offer) return null;
 
   const publisherId = process.env.EXPEDIA_AFFILIATE_ID ?? 'YOUR_FALLBACK_PUBLISHER_ID';
@@ -446,22 +446,20 @@ function generateAffiliateLink(offer: any): string | null {
   const origin = offer.itineraries[0].segments[0].departure.iataCode;
   const destination = offer.itineraries[0].segments.slice(-1)[0].arrival.iataCode;
   const departureDate = offer.itineraries[0].segments[0].departure.at.split('T')[0];
-
-  // Number of passengers and cabin class can be parameterized as needed
-  const passengers = "adults:1";
   const cabinClass = "economy";
-
-  // pwaDialog param to open flight details and fare dialog on Expedia
   const pwaDialog = "FLIGHTS_DETAILS_AND_FARES-index-1-leg-0-fsr";
 
+  const passengersParam = `adults:${passengersCount}`;
+
   return `${baseUrl}?trip=oneway` +
-         `&leg1=from:${origin},to:${destination},departure:${departureDate}TANYT` +
-         `&passengers=${passengers}` +
-         `&options=cabinclass:${cabinClass}` +
-         `&mode=search` +
-         `&adref=${publisherId}` +
-         `&pwaDialog=${pwaDialog}`;
+    `&leg1=from:${origin},to:${destination},departure:${departureDate}TANYT` +
+    `&options=cabinclass:${cabinClass}` +
+    `&passengers=${passengersParam}` +
+    `&mode=search` +
+    `&adref=${publisherId}` +
+    `&pwaDialog=${pwaDialog}`;
 }
+
 
 
 
