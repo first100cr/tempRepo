@@ -433,9 +433,14 @@ function getBaggageInfo(travelerPricing: any): string {
   } catch { return '15 KG'; }
 }
 
-function generateAffiliateLink(offerId: string, origin: string, destination: string): string {
-  const affiliateId = process.env.AFFILIATE_ID || 'skailinker';
-  return `https://www.skyscanner.co.in/transport/flights/${origin.toLowerCase()}/${destination.toLowerCase()}?associateid=${affiliateId}`;
+// function generateAffiliateLink(offerId: string, origin: string, destination: string): string {
+//   const affiliateId = process.env.AFFILIATE_ID || 'skailinker';
+//   return `https://www.skyscanner.co.in/transport/flights/${origin.toLowerCase()}/${destination.toLowerCase()}?associateid=${affiliateId}`;
+// }
+
+function generateAffiliateLink(origin: string, destination: string, departureDate: string): string {
+  const affiliateId = process.env.EXPEDIA_AFFILIATE_ID || 'YOUR_EXPEDIA_ID';
+  return `https://www.expedia.com/Flights-Search?trip=oneway&leg1=from:${origin},to:${destination},departure:${departureDate}TANYT&passengers=adults:1&options=cabinclass:economy&mode=search&affiliateId=${affiliateId}`;
 }
 
 export async function testAmadeusConnection(): Promise<boolean> {
