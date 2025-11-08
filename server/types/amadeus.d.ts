@@ -14,11 +14,11 @@ declare module 'amadeus' {
     destinationLocationCode: string;
     departureDate: string;
     returnDate?: string;
-    adults: string;
-    children?: string;
-    infants?: string;
+    adults: number; // 🔧 changed from string → number
+    children?: number;
+    infants?: number;
     travelClass?: 'ECONOMY' | 'PREMIUM_ECONOMY' | 'BUSINESS' | 'FIRST';
-    max?: string;
+    max?: number;
     currencyCode?: string;
     nonStop?: boolean;
   }
@@ -186,14 +186,16 @@ declare module 'amadeus' {
       flightOffersSearch: {
         get(params: FlightSearchParams): Promise<AmadeusResponse<FlightOffer[]>>;
       };
+
       flightOffers: {
         pricing: {
           /**
-           * Validates a list of flight offers and returns the latest prices.
-           * The response structure is similar to flightOffersSearch,
-           * but may include updated taxes and fare basis info.
+           * ✅ Correct way to validate/price flight offers
+           * Amadeus SDK doesn’t expose `flightOffersPrice` directly.
+           * Instead, use this route:
+           * `amadeus.shopping.flightOffers.pricing.post()`
            */
-          post(body: string): Promise<AmadeusResponse<FlightOffer[]>>;
+          post(body: { data: FlightOffer[] }): Promise<AmadeusResponse<FlightOffer[]>>;
         };
       };
     };

@@ -1,15 +1,9 @@
 // server/routes.ts
 // OPTIMIZED VERSION - Stable, TypeSafe, and Fast
-// Improvements:
-// 1. TypeScript-safe async route handling
-// 2. Unified error responses
-// 3. Prevents unhandled promise rejections
-// 4. Retry + batch logic fixed and documented
-// 5. Minor performance optimizations
 
 import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
-import { searchFlights } from "./services/amadeusService.js";
+import { searchFlights } from "./services/amadeusService";
 
 // Extend Express Request type for `req.user`
 declare global {
@@ -24,6 +18,9 @@ declare global {
   }
 }
 
+// -------------------------
+// CONFIG & HELPERS
+// -------------------------
 const RETRY_CONFIG = {
   maxAttempts: 3,
   delayMs: 2000,
@@ -65,15 +62,42 @@ async function retryWithDelay<T>(
   }
 }
 
+// -------------------------
+// TYPE DEFINITIONS
+// -------------------------
+type Flight = {
+  price: number;
+  isValidated?: boolean;
+  [key: string]: any;
+};
+
+type PriceDataPoint = {
+  date: string;
+  price: number | null;
+  flightData: Flight | null;
+  status: "success" | "no_flights" | "error";
+  daysFromSearch: number;
+};
+
+// -------------------------
+// ROUTES REGISTRATION
+// -------------------------
 export function registerRoutes(app: Express): Server {
   // =================================================
-  // ✈️  FLIGHT SEARCH (Primary Endpoint)
+  // ✈️ FLIGHT SEARCH (Primary Endpoint)
   // =================================================
   app.post("/api/flights/search", async (req: Request, res: Response) => {
     const startTime = Date.now();
 
     try {
-      const { origin, destination, departDate, returnDate, passengers = 1, tripType = "round-trip" } = req.body;
+      const {
+        origin,
+        destination,
+        departDate,
+        returnDate,
+        passengers = 1,
+        tripType = "round-trip",
+      } = req.body;
 
       if (!origin || !destination || !departDate) {
         return res.status(400).json({
@@ -99,13 +123,15 @@ export function registerRoutes(app: Express): Server {
         });
       }
 
-      const flightData = await retryWithDelay(async () => {
+      const passengersNum = Number(passengers) || 1;
+
+      const flightData: Flight[] = await retryWithDelay(async () => {
         const results = await searchFlights({
           origin,
           destination,
           departDate,
           returnDate,
-          passengers,
+          passengers: passengersNum,
         });
         console.log(`✅ Amadeus returned ${results.length} flights`);
         return results;
@@ -113,8 +139,8 @@ export function registerRoutes(app: Express): Server {
 
       const validationStats = {
         total: flightData.length,
-        validated: flightData.filter((f: any) => f.isValidated).length,
-        unvalidated: flightData.filter((f: any) => !f.isValidated).length,
+        validated: flightData.filter((f: Flight) => f.isValidated).length,
+        unvalidated: flightData.filter((f: Flight) => !f.isValidated).length,
       };
 
       res.json({
@@ -125,7 +151,7 @@ export function registerRoutes(app: Express): Server {
           destination: destination.toUpperCase(),
           departDate,
           returnDate,
-          passengers,
+          passengers: passengersNum,
           tripType,
         },
         meta: {
@@ -134,11 +160,11 @@ export function registerRoutes(app: Express): Server {
           validation: validationStats,
         },
       });
-    } catch (error: any) {
-      console.error("❌ SEARCH FAILED:", error.message);
+    } catch (error: unknown) {
+      console.error("❌ SEARCH FAILED:", (error as Error).message);
       res.status(500).json({
         success: false,
-        message: error.message || "Failed to search flights",
+        message: (error as Error).message || "Failed to search flights",
       });
     }
   });
@@ -178,22 +204,17 @@ export function registerRoutes(app: Express): Server {
 
       const totalDays = 46;
       const batchSize = 8;
+
       const yesterday = new Date();
       yesterday.setDate(yesterday.getDate() - 1);
       yesterday.setHours(0, 0, 0, 0);
 
-      const priceData: Array<{
-        date: string;
-        price: number | null;
-        flightData: any | null;
-        status: "success" | "no_flights" | "error";
-        daysFromSearch: number;
-      }> = [];
+      const priceData: PriceDataPoint[] = [];
 
       console.log(`\n📅 Fetching price calendar (-30 → +15 days)`);
 
       for (let batch = 0; batch < Math.ceil(totalDays / batchSize); batch++) {
-        const batchPromises = [];
+        const batchPromises: Promise<PriceDataPoint>[] = [];
 
         for (let i = 0; i < batchSize; i++) {
           const dayIndex = batch * batchSize + i;
@@ -201,6 +222,7 @@ export function registerRoutes(app: Express): Server {
 
           const currentDate = new Date(startDate);
           currentDate.setDate(startDate.getDate() + dayIndex);
+
           const dateStr = currentDate.toISOString().split("T")[0];
           const daysFromSearch = Math.round(
             (currentDate.getTime() - searchDate.getTime()) / (1000 * 60 * 60 * 24)
@@ -221,10 +243,10 @@ export function registerRoutes(app: Express): Server {
             origin,
             destination,
             departDate: dateStr,
-            passengers,
+            passengers: Number(passengers) || 1,
             maxResults: 10,
           })
-            .then((flights) => {
+            .then((flights: Flight[]) => {
               if (flights.length === 0) {
                 return {
                   date: dateStr,
@@ -235,7 +257,11 @@ export function registerRoutes(app: Express): Server {
                 };
               }
 
-              const cheapest = flights.reduce((min, f) => (f.price < min.price ? f : min));
+              const cheapest = flights.reduce<Flight>(
+                (min, f) => (f.price < min.price ? f : min),
+                flights[0]
+              );
+
               return {
                 date: dateStr,
                 price: cheapest.price,
@@ -244,13 +270,16 @@ export function registerRoutes(app: Express): Server {
                 daysFromSearch,
               };
             })
-            .catch((error) => ({
-              date: dateStr,
-              price: null,
-              flightData: null,
-              status: "error" as const,
-              daysFromSearch,
-            }));
+            .catch((error: unknown) => {
+              console.error(`❌ ${dateStr}:`, (error as Error).message);
+              return {
+                date: dateStr,
+                price: null,
+                flightData: null,
+                status: "error" as const,
+                daysFromSearch,
+              };
+            });
 
           batchPromises.push(promise);
         }
@@ -289,11 +318,11 @@ export function registerRoutes(app: Express): Server {
           },
         },
       });
-    } catch (error: any) {
-      console.error("❌ PRICE CALENDAR ERROR:", error.message);
+    } catch (error: unknown) {
+      console.error("❌ PRICE CALENDAR ERROR:", (error as Error).message);
       res.status(500).json({
         success: false,
-        message: error.message || "Failed to fetch price calendar",
+        message: (error as Error).message || "Failed to fetch price calendar",
       });
     }
   });
