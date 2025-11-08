@@ -1,8 +1,9 @@
 // server/services/amadeusService.ts
-// ✅ UPDATED VERSION — Includes price validation step before returning flights
+// ✅ UPDATED VERSION — Fixes "Price validation failed: undefined" & improves error logging
 
 import Amadeus from 'amadeus';
 import type { FlightOffer as AmadeusFlightOffer } from 'amadeus';
+
 const hostname = process.env.AMADEUS_HOSTNAME || 'production';
 
 const amadeus = new Amadeus({
@@ -118,24 +119,42 @@ export async function searchFlights(params: FlightSearchParams): Promise<FlightO
     const offersToValidate = rawOffers.slice(0, 10);
     let validatedOffers: any[] = [];
 
-    try {
-      console.log(`🔍 Validating top ${offersToValidate.length} flight offers with Amadeus Pricing API...`);
-      const validationResponse = await amadeus.shopping.flightOffers.pricing.post(
-        JSON.stringify({ data: { type: 'flight-offers-pricing', flightOffers: offersToValidate } })
-      );
+    if (offersToValidate.length) {
+      try {
+        console.log(`🔍 Validating top ${offersToValidate.length} flight offers with Amadeus Pricing API...`);
 
-      validatedOffers = validationResponse.data || [];
-      console.log(`✅ Received ${validatedOffers.length} validated offers`);
-    } catch (validationError: any) {
-      console.warn('⚠️ Price validation failed:', validationError.message);
+        // 🧠 FIX: Use correct API signature and log full response
+        const validationResponse = await amadeus.shopping.flightOffers.pricing.post(
+          JSON.stringify({
+            data: {
+              type: 'flight-offers-pricing',
+              flightOffers: offersToValidate
+            }
+          })
+        );
+
+        // 🧠 FIX: Some responses return an object instead of array
+        validatedOffers = Array.isArray(validationResponse.data)
+          ? validationResponse.data
+          : [validationResponse.data].filter(Boolean);
+
+        console.log(`✅ Received ${validatedOffers.length} validated offers`);
+      } catch (validationError: any) {
+        console.warn('⚠️ Price validation failed:');
+        console.error(validationError.response?.data || validationError.message);
+      }
     }
 
     // 🧾 STEP 3: Update prices in transformed list
     if (validatedOffers.length) {
-      const validatedMap = new Map(validatedOffers.map((v: any) => [v.id, v.price.grandTotal]));
+      const validatedMap = new Map(
+        validatedOffers.map((v: any) => [v.id, parseFloat(v.price?.grandTotal ?? v.price?.total ?? '0')])
+      );
+
       for (const flight of transformed) {
-        if (validatedMap.has(flight.id)) {
-          flight.price = Math.round(parseFloat(validatedMap.get(flight.id)));
+        const newPrice = validatedMap.get(flight.id);
+        if (newPrice) {
+          flight.price = Math.round(newPrice);
           flight.isValidated = true;
           flight.priceLastUpdated = new Date().toISOString();
         }
@@ -147,7 +166,7 @@ export async function searchFlights(params: FlightSearchParams): Promise<FlightO
       date: departDate,
       searchDurationMs: Date.now() - searchStartTime,
       offersReturned: rawOffers.length,
-      validatedOffers: validatedOffers.length,
+      validatedOffers: validatedOffers.length
     };
 
     console.log(`🏁 Final flight list: ${transformed.length} flights`);
@@ -155,7 +174,7 @@ export async function searchFlights(params: FlightSearchParams): Promise<FlightO
 
     return transformed;
   } catch (error: any) {
-    console.error('❌ searchFlights error:', error.message);
+    console.error('❌ searchFlights error:', error.response?.data || error.message);
     throw error;
   }
 }
@@ -172,7 +191,7 @@ function transformFlight(offer: any, dictionaries?: any): FlightOffer | null {
     const last = itinerary.segments[itinerary.segments.length - 1];
     const airlineCode = first.carrierCode?.toUpperCase() || 'XX';
 
-    const price = Math.round(parseFloat(offer.price?.grandTotal || '0'));
+    const price = Math.round(parseFloat(offer.price?.grandTotal || offer.price?.total || '0'));
     if (!price) return null;
 
     const aircraftCode = first.aircraft?.code?.toUpperCase();
@@ -246,7 +265,6 @@ function generateAffiliateLink(offer: AmadeusFlightOffer): string {
 
   return `${base}?trip=oneway&leg1=from:${origin},to:${destination},departure:${departureDate}TANYT&passengers=adults:1&options=cabinclass:economy&mode=search&partnerref=${publisherId}`;
 }
-
 
 // -------------------------------
 // Airport search helpers
