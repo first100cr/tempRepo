@@ -1,12 +1,12 @@
 // client/src/components/FlightResultsInline.tsx
-// REMOVED ANNOYING BANNER VERSION
+// FIXED VERSION - Safe date parsing and null checks
 
 import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Plane, Clock, IndianRupee, Calendar, ExternalLink, MapPin } from "lucide-react";
-import { format } from "date-fns";
+import { format, isValid, parseISO } from "date-fns";
 
 interface Flight {
   id: string;
@@ -62,6 +62,32 @@ export default function FlightResultsInline({
   const currentFlights = flights.slice(indexOfFirstFlight, indexOfLastFlight);
   const totalPages = Math.ceil(flights.length / flightsPerPage);
 
+  // ✅ FIX: Safe date formatter for Skyscanner
+  const formatDateForSkyscanner = (dateStr: string | undefined | null): string => {
+    if (!dateStr) {
+      console.warn('Invalid date string provided to formatDateForSkyscanner');
+      return '';
+    }
+
+    try {
+      const date = new Date(dateStr);
+      
+      // Check if date is valid
+      if (isNaN(date.getTime())) {
+        console.warn('Invalid date:', dateStr);
+        return '';
+      }
+
+      const yy = date.getFullYear().toString().slice(-2);
+      const mm = (date.getMonth() + 1).toString().padStart(2, '0');
+      const dd = date.getDate().toString().padStart(2, '0');
+      return `${yy}${mm}${dd}`;
+    } catch (error) {
+      console.error('Error formatting date for Skyscanner:', error);
+      return '';
+    }
+  };
+
   const generateSkyscannerUrl = (flight: Flight) => {
     if (flight.bookingUrl) {
       return flight.bookingUrl;
@@ -73,16 +99,14 @@ export default function FlightResultsInline({
     const returnDate = searchParams?.returnDate;
     const adults = searchParams?.passengers || 1;
 
-    const formatDateForSkyscanner = (dateStr: string) => {
-      const date = new Date(dateStr);
-      const yy = date.getFullYear().toString().slice(-2);
-      const mm = (date.getMonth() + 1).toString().padStart(2, '0');
-      const dd = date.getDate().toString().padStart(2, '0');
-      return `${yy}${mm}${dd}`;
-    };
-
     const departFormatted = formatDateForSkyscanner(departDate);
     const returnFormatted = returnDate ? formatDateForSkyscanner(returnDate) : '';
+
+    // If date formatting failed, fallback to generic Skyscanner URL
+    if (!departFormatted) {
+      const baseUrl = 'https://www.skyscanner.co.in/transport/flights';
+      return `${baseUrl}/${origin.toLowerCase()}/${destination.toLowerCase()}/`;
+    }
 
     const baseUrl = 'https://www.skyscanner.co.in/transport/flights';
     const originCode = origin.toLowerCase();
@@ -118,6 +142,27 @@ export default function FlightResultsInline({
     window.open(skyscannerUrl, '_blank', 'noopener,noreferrer');
   };
 
+  // ✅ FIX: Safe date display formatter
+  const safeFormatDate = (dateStr: string | undefined | null, formatStr: string = 'MMM dd, yyyy'): string => {
+    if (!dateStr) return 'N/A';
+    
+    try {
+      const date = parseISO(dateStr);
+      if (!isValid(date)) {
+        // Try parsing as regular Date string
+        const fallbackDate = new Date(dateStr);
+        if (isValid(fallbackDate)) {
+          return format(fallbackDate, formatStr);
+        }
+        return dateStr;
+      }
+      return format(date, formatStr);
+    } catch (error) {
+      console.warn('Error formatting date:', dateStr, error);
+      return dateStr;
+    }
+  };
+
   if (loading) {
     return (
       <div className="space-y-4">
@@ -142,7 +187,7 @@ export default function FlightResultsInline({
     );
   }
 
-  const uniqueAirlines = Array.from(new Set(flights.map(f => f.airline)));
+  const uniqueAirlines = Array.from(new Set(flights.map(f => f.airline).filter(Boolean)));
 
   return (
     <div className="space-y-4">
@@ -161,14 +206,14 @@ export default function FlightResultsInline({
             </p>
           )}
         </div>
-        {searchParams && (
+        {searchParams && searchParams.departDate && (
           <div className="text-sm text-muted-foreground">
             <div className="flex items-center gap-2">
               <Calendar className="h-4 w-4" />
               <span>
-                {format(new Date(searchParams.departDate), 'MMM dd, yyyy')}
+                {safeFormatDate(searchParams.departDate)}
                 {searchParams.returnDate && 
-                  ` - ${format(new Date(searchParams.returnDate), 'MMM dd, yyyy')}`
+                  ` - ${safeFormatDate(searchParams.returnDate)}`
                 }
               </span>
             </div>
@@ -188,11 +233,12 @@ export default function FlightResultsInline({
                     {flight.airlineLogo ? (
                       <img 
                         src={flight.airlineLogo} 
-                        alt={flight.airline}
+                        alt={flight.airline || 'Airline'}
                         className="w-10 h-10 rounded-full object-cover"
                         onError={(e) => {
                           e.currentTarget.style.display = 'none';
-                          e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                          const next = e.currentTarget.nextElementSibling;
+                          if (next) next.classList.remove('hidden');
                         }}
                       />
                     ) : null}
@@ -200,9 +246,9 @@ export default function FlightResultsInline({
                       <Plane className="h-5 w-5 text-primary" />
                     </div>
                     <div>
-                      <div className="font-semibold text-base">{flight.airline}</div>
+                      <div className="font-semibold text-base">{flight.airline || 'Unknown Airline'}</div>
                       <div className="text-xs text-muted-foreground">
-                        {flight.flightNumber} • {flight.aircraft}
+                        {flight.flightNumber || 'N/A'} • {flight.aircraft || 'N/A'}
                       </div>
                     </div>
                   </div>
@@ -228,31 +274,31 @@ export default function FlightResultsInline({
 
                 <div className="flex items-center gap-4">
                   <div className="text-center">
-                    <div className="text-2xl font-bold tabular-nums">{flight.departTime}</div>
-                    <div className="text-sm text-muted-foreground font-medium">{flight.origin}</div>
-                    <div className="text-xs text-muted-foreground">{flight.departDate}</div>
+                    <div className="text-2xl font-bold tabular-nums">{flight.departTime || 'N/A'}</div>
+                    <div className="text-sm text-muted-foreground font-medium">{flight.origin || 'N/A'}</div>
+                    <div className="text-xs text-muted-foreground">{flight.departDate || 'N/A'}</div>
                   </div>
                   
                   <div className="flex-1 flex items-center gap-2 px-4">
                     <div className="h-px bg-border flex-1"></div>
                     <div className="flex items-center gap-1 text-xs text-muted-foreground">
                       <Clock className="h-3 w-3" />
-                      <span>{flight.duration}</span>
+                      <span>{flight.duration || 'N/A'}</span>
                     </div>
                     <div className="h-px bg-border flex-1"></div>
                   </div>
                   
                   <div className="text-center">
-                    <div className="text-2xl font-bold tabular-nums">{flight.arriveTime}</div>
-                    <div className="text-sm text-muted-foreground font-medium">{flight.destination}</div>
-                    <div className="text-xs text-muted-foreground">{flight.arriveDate}</div>
+                    <div className="text-2xl font-bold tabular-nums">{flight.arriveTime || 'N/A'}</div>
+                    <div className="text-sm text-muted-foreground font-medium">{flight.destination || 'N/A'}</div>
+                    <div className="text-xs text-muted-foreground">{flight.arriveDate || 'N/A'}</div>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-4 text-xs text-muted-foreground">
                   <span className="flex items-center gap-1">
                     <MapPin className="h-3 w-3" />
-                    {flight.cabinClass}
+                    {flight.cabinClass || 'Economy'}
                   </span>
                   <span>•</span>
                   <span>{flight.availableSeats || flight.numberOfBookableSeats || 9} seats available</span>
@@ -269,10 +315,12 @@ export default function FlightResultsInline({
                 <div>
                   <div className="flex items-baseline justify-end gap-1">
                     <IndianRupee className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-3xl font-bold tabular-nums">{flight.price.toLocaleString('en-IN')}</span>
+                    <span className="text-3xl font-bold tabular-nums">
+                      {flight.price?.toLocaleString('en-IN') || '0'}
+                    </span>
                   </div>
                   <div className="text-xs text-muted-foreground mt-1">
-                    per person • {flight.currency}
+                    per person • {flight.currency || 'INR'}
                   </div>
                   {flight.priceLastUpdated && (
                     <div className="text-xs text-green-600 dark:text-green-400 mt-1">
@@ -359,8 +407,6 @@ export default function FlightResultsInline({
           </div>
         </Card>
       )}
-
-      {/* REMOVED THE ANNOYING "LIMITED AIRLINE RESULTS" BANNER */}
     </div>
   );
 }
