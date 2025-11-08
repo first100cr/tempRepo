@@ -1,5 +1,5 @@
 // client/src/components/FlightSearchForm.tsx
-// UPDATED - With autocomplete and inline-only errors
+// FINAL FIXED VERSION - With autocomplete and safe airport code extraction
 
 import { useState, useEffect, useRef } from "react";
 import { format } from "date-fns";
@@ -93,6 +93,24 @@ export default function FlightSearchForm({
   const originDropdownRef = useRef<HTMLDivElement>(null);
   const destinationDropdownRef = useRef<HTMLDivElement>(null);
 
+  // ✅ SAFE AIRPORT CODE EXTRACTION
+  const extractAirportCode = (input: string): string => {
+    if (!input) return '';
+    const trimmed = input.trim();
+    if (!trimmed) return '';
+    
+    // Handle "DEL - Delhi" format
+    if (trimmed.includes('-')) {
+      const parts = trimmed.split('-');
+      if (parts.length > 0 && parts[0]) {
+        return parts[0].trim().toUpperCase();
+      }
+    }
+    
+    // Handle plain "DEL" format
+    return trimmed.toUpperCase();
+  };
+
   // Update form when initialValues change
   useEffect(() => {
     if (initialValues) {
@@ -139,7 +157,7 @@ export default function FlightSearchForm({
         airport.code.toLowerCase().includes(searchTerm) ||
         airport.city.toLowerCase().includes(searchTerm) ||
         airport.name.toLowerCase().includes(searchTerm)
-    ).slice(0, 8); // Limit to 8 suggestions
+    ).slice(0, 8);
   };
 
   // Handle origin input change
@@ -256,9 +274,9 @@ export default function FlightSearchForm({
   const validateForm = (): boolean => {
     const newErrors: ValidationErrors = {};
 
-    // Extract airport code from input (e.g., "DEL - Delhi" -> "DEL")
-    const originCode = origin.split('-')[0].trim().toUpperCase();
-    const destinationCode = destination.split('-')[0].trim().toUpperCase();
+    // Extract airport code from input using safe helper
+    const originCode = extractAirportCode(origin);
+    const destinationCode = extractAirportCode(destination);
 
     // Validate origin
     if (!origin || origin.trim() === "") {
@@ -311,9 +329,9 @@ export default function FlightSearchForm({
     onSearchStart?.();
 
     try {
-      // Extract airport codes
-      const originCode = origin.split('-')[0].trim().toUpperCase();
-      const destinationCode = destination.split('-')[0].trim().toUpperCase();
+      // Extract airport codes using the safe helper function
+      const originCode = extractAirportCode(origin);
+      const destinationCode = extractAirportCode(destination);
 
       const searchParams = {
         origin: originCode,
