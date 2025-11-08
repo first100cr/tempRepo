@@ -3,7 +3,7 @@
 
 import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
-import { searchFlights } from "./services/amadeusService";
+import { searchFlights } from "./services/amadeusService.js"
 
 // Extend Express Request type for `req.user`
 declare global {
