@@ -1,6 +1,23 @@
-import Amadeus, { FlightOffer } from 'amadeus';
-import dotenv from 'dotenv';
+// server/services/amadeusService.ts
+import Amadeus from 'amadeus';
+import * as dotenv from 'dotenv';
 dotenv.config();
+
+interface FlightOffer {
+  id: string;
+  price: {
+    total: string;
+    currency: string;
+  };
+  itineraries: {
+    segments: {
+      departure: { iataCode: string; at: string };
+      arrival: { iataCode: string; at: string };
+      carrierCode: string;
+      number: string;
+    }[];
+  }[];
+}
 
 const amadeus = new Amadeus({
   clientId: process.env.AMADEUS_CLIENT_ID!,
@@ -11,19 +28,20 @@ const amadeus = new Amadeus({
 // ----------------------------
 // Expedia affiliate generator
 // ----------------------------
-function generateExpediaLink(from: string, to: string, departureDate: string, adults = 1) {
+function generateExpediaLink(from: string, to: string, departureDate: string, adults = 1): string {
   const date = new Date(departureDate);
-  const formatted = date
-    .toLocaleDateString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit' })
-    .replace(/\//g, '/'); // mm/dd/yyyy
-
-  return `https://www.expedia.com/Flights-Search?trip=oneway&leg1=from:${from},to:${to},departure:${formatted}T00:00:00&passengers=adults:${adults}&mode=search&adref=1011l416900`;
+  const formatted = date.toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  return `https://www.expedia.com/Flights-Search?trip=oneway&leg1=from:${from},to:${to},departure:${formatted}TANYT&passengers=adults:${adults}&mode=search&adref=1011l416900`;
 }
 
 // ----------------------------
 // Price Validation
 // ----------------------------
-async function validateFlightPrice(offer: FlightOffer) {
+async function validateFlightPrice(offer: FlightOffer): Promise<FlightOffer | null> {
   try {
     const response = await amadeus.shopping.flightOffers.pricing.post({
       data: {
@@ -32,8 +50,11 @@ async function validateFlightPrice(offer: FlightOffer) {
       },
     });
 
-    const validatedOffer =
-      response.data?.data?.flightOffers?.[0] ?? response.data?.flightOffers?.[0];
+    const validatedOffer: any =
+      (response.data?.data?.flightOffers?.[0] ||
+        (Array.isArray(response.data) && response.data[0])) ??
+      null;
+
     if (!validatedOffer?.price?.total) {
       console.warn('⚠️ Price validation failed: No price returned');
       return null;
@@ -71,16 +92,9 @@ export async function searchFlights(params: any) {
     max = '50',
   } = params;
 
-  console.log('\n================================================================================');
-  console.log('🔍 NEW FLIGHT SEARCH REQUEST');
-  console.log('================================================================================');
-  console.log(`Route: ${originLocationCode} → ${destinationLocationCode}`);
-  console.log(`Date: ${departureDate}`);
-  console.log(`Passengers: ${adults}`);
-  console.log('================================================================================\n');
+  console.log(`🔍 Searching flights: ${originLocationCode} → ${destinationLocationCode}`);
 
   try {
-    console.log(`🔥 Searching flights: ${originLocationCode} → ${destinationLocationCode} on ${departureDate}`);
     const response = await amadeus.shopping.flightOffersSearch.get({
       originLocationCode,
       destinationLocationCode,
@@ -95,11 +109,10 @@ export async function searchFlights(params: any) {
       max,
     });
 
-    const offers: FlightOffer[] = response.data || [];
-    console.log(`📡 Amadeus returned ${offers.length} offers`);
+    const offers: FlightOffer[] = Array.isArray(response.data) ? response.data : [];
 
-    // Transform offers for frontend
-    const transformed = offers.map((offer: FlightOffer) => {
+    // Transform offers for UI
+    const transformed = offers.map((offer) => {
       const firstItinerary = offer.itineraries[0];
       const firstSegment = firstItinerary?.segments[0];
       const lastSegment = firstItinerary?.segments[firstItinerary.segments.length - 1];
@@ -108,8 +121,8 @@ export async function searchFlights(params: any) {
         id: offer.id,
         price: parseFloat(offer.price.total),
         currency: offer.price.currency,
-        origin: firstSegment?.departure?.iataCode,
-        destination: lastSegment?.arrival?.iataCode,
+        origin: firstSegment?.departure?.iataCode || '',
+        destination: lastSegment?.arrival?.iataCode || '',
         itineraries: offer.itineraries,
         affiliateUrl: generateExpediaLink(
           firstSegment?.departure?.iataCode || '',
@@ -120,18 +133,11 @@ export async function searchFlights(params: any) {
       };
     });
 
-    console.log(`✅ Transformed ${transformed.length} flight offers`);
-    console.log('🔍 Validating top 10 flight offers with Amadeus Pricing API...');
-
-    // Validate first 10 flight prices
-    const sample = offers.slice(0, 10);
+    // Validate first 5 offers
+    const sample = offers.slice(0, 5);
     for (const offer of sample) {
       await validateFlightPrice(offer);
     }
-
-    console.log(`🏁 Final flight list: ${transformed.length} flights`);
-    console.log('🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥');
-    console.log(`✅ Amadeus returned ${transformed.length} live flights`);
 
     return { success: true, data: transformed };
   } catch (error: any) {
