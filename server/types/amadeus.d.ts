@@ -6,6 +6,9 @@ declare module 'amadeus' {
     logLevel?: 'debug' | 'warn' | 'silent';
   }
 
+  // ==============================
+  // 📦 SEARCH PARAMETERS
+  // ==============================
   export interface FlightSearchParams {
     originLocationCode: string;
     destinationLocationCode: string;
@@ -29,6 +32,9 @@ declare module 'amadeus' {
     };
   }
 
+  // ==============================
+  // 📊 GENERIC RESPONSE WRAPPER
+  // ==============================
   export interface AmadeusResponse<T = any> {
     data: T;
     meta?: {
@@ -44,6 +50,9 @@ declare module 'amadeus' {
     dictionaries?: any;
   }
 
+  // ==============================
+  // ✈️ FLIGHT OFFER STRUCTURE
+  // ==============================
   export interface FlightOffer {
     type: string;
     id: string;
@@ -88,12 +97,19 @@ declare module 'amadeus' {
     at: string;
   }
 
+  // ==============================
+  // 💰 PRICING STRUCTURES
+  // ==============================
   export interface Price {
     currency: string;
     total: string;
     base: string;
     fees?: Fee[];
     grandTotal: string;
+    taxes?: {
+      amount: string;
+      code: string;
+    }[];
   }
 
   export interface Fee {
@@ -127,6 +143,9 @@ declare module 'amadeus' {
     };
   }
 
+  // ==============================
+  // 🏙️ AIRPORT STRUCTURE
+  // ==============================
   export interface Airport {
     type: string;
     subType: string;
@@ -157,6 +176,9 @@ declare module 'amadeus' {
     };
   }
 
+  // ==============================
+  // ⚙️ MAIN AMADEUS CLASS
+  // ==============================
   export default class Amadeus {
     constructor(config: AmadeusConfig);
 
@@ -166,7 +188,12 @@ declare module 'amadeus' {
       };
       flightOffers: {
         pricing: {
-          post(body: string): Promise<AmadeusResponse<any>>;
+          /**
+           * Validates a list of flight offers and returns the latest prices.
+           * The response structure is similar to flightOffersSearch,
+           * but may include updated taxes and fare basis info.
+           */
+          post(body: string): Promise<AmadeusResponse<FlightOffer[]>>;
         };
       };
     };
