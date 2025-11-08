@@ -4,7 +4,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import AIPredictionPanel from "@/components/AIPredictionPanel";
-import PriceTrendChart from "@/components/PriceTrendChart";
 import { Brain, TrendingDown, Calendar, MapPin } from "lucide-react";
 import PriceTrendChartInteractive from "@/components/PriceTrendChartInteractive";
 
