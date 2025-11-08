@@ -462,13 +462,6 @@ function generateAffiliateLink(offer: any, searchParams?: { passengers?: number 
 }
 
 
-
-
-
-
-
-
-
 export async function testAmadeusConnection(): Promise<boolean> {
   try {
     console.log('🧪 Testing Amadeus...');
