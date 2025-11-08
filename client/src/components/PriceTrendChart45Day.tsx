@@ -1,5 +1,5 @@
 // client/src/components/PriceTrendChart45Day.tsx
-// ENHANCED VERSION - Full flight details in selected card
+// FIXED VERSION - Safe date parsing and null checks
 
 import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
@@ -16,7 +16,7 @@ import {
   AreaChart
 } from "recharts";
 import { Calendar, TrendingDown, Loader2, X, Info, Plane, Clock, ArrowRight, MapPin, Users, Luggage } from "lucide-react";
-import { format, parseISO, isToday, isTomorrow } from "date-fns";
+import { format, parseISO, isToday, isTomorrow, isValid } from "date-fns";
 
 interface PriceDataPoint {
   date: string;
@@ -78,9 +78,9 @@ export default function PriceTrendChart45Day({
         throw new Error(data.message || 'Failed to fetch price data');
       }
 
-      console.log('Price calendar loaded:', data.priceData.length, 'days');
+      console.log('Price calendar loaded:', data.priceData?.length || 0, 'days');
       
-      setPriceData(data.priceData);
+      setPriceData(data.priceData || []);
       setStats(data.stats);
       
     } catch (err: any) {
@@ -91,21 +91,39 @@ export default function PriceTrendChart45Day({
     }
   };
 
-  const formatFlightDate = (dateStr: string): string => {
+  // ✅ FIX: Safe date formatting with validation
+  const formatFlightDate = (dateStr: string | undefined | null): string => {
+    if (!dateStr) return 'Invalid date';
     try {
       const date = parseISO(dateStr);
+      if (!isValid(date)) return dateStr;
       return format(date, 'EEEE, MMMM dd, yyyy');
     } catch {
       return dateStr;
     }
   };
 
-  const formatShortDate = (dateStr: string): string => {
+  // ✅ FIX: Safe short date formatting
+  const formatShortDate = (dateStr: string | undefined | null): string => {
+    if (!dateStr) return 'Invalid date';
     try {
       const date = parseISO(dateStr);
+      if (!isValid(date)) return dateStr;
       return format(date, 'dd MMM yyyy');
     } catch {
       return dateStr;
+    }
+  };
+
+  // ✅ FIX: Safe date parsing helper
+  const safeParseDepartDate = (): string => {
+    if (!departDate) return '';
+    try {
+      const date = parseISO(departDate);
+      if (!isValid(date)) return departDate;
+      return format(date, 'MMM dd');
+    } catch {
+      return departDate;
     }
   };
 
@@ -191,13 +209,24 @@ export default function PriceTrendChart45Day({
     if (!active || !payload || !payload[0]) return null;
 
     const data = payload[0].payload;
-    const date = parseISO(data.date);
+    
+    // ✅ FIX: Safe date parsing in tooltip
+    let formattedDate = data.date;
+    try {
+      const date = parseISO(data.date);
+      if (isValid(date)) {
+        formattedDate = format(date, 'EEE, MMM dd, yyyy');
+      }
+    } catch {
+      // Keep original if parsing fails
+    }
+    
     const isSearchDate = data.date === departDate;
     const daysFromSearch = data.daysFromSearch || 0;
     
     return (
       <div className="bg-popover border border-border rounded-lg p-3 shadow-lg">
-        <div className="font-medium mb-1">{format(date, 'EEE, MMM dd, yyyy')}</div>
+        <div className="font-medium mb-1">{formattedDate}</div>
         {isSearchDate && <span className="text-xs text-amber-600 font-semibold">Your Search Date</span>}
         {!isSearchDate && (
           <div className="text-xs text-muted-foreground">
@@ -220,9 +249,13 @@ export default function PriceTrendChart45Day({
     );
   };
 
+  // ✅ FIX: Safe X-axis formatter
   const formatXAxis = (dateStr: string) => {
+    if (!dateStr) return '';
     try {
       const date = parseISO(dateStr);
+      if (!isValid(date)) return dateStr;
+      
       if (isToday(date)) return 'Today';
       if (isTomorrow(date)) return 'Tmrw';
       if (dateStr === departDate) return format(date, 'MMM dd') + ' *';
@@ -250,7 +283,7 @@ export default function PriceTrendChart45Day({
               45-Day Price Trend
             </h3>
             <p className="text-sm text-muted-foreground">
-              {origin} to {destination} • 30 days before + 15 days after {format(parseISO(departDate), 'MMM dd')}
+              {origin} to {destination} • 30 days before + 15 days after {safeParseDepartDate()}
             </p>
           </div>
         </div>
@@ -275,7 +308,7 @@ export default function PriceTrendChart45Day({
                 </div>
                 {stats.bestDate && (
                   <div className="text-xs text-muted-foreground mt-1">
-                    {format(parseISO(stats.bestDate), 'MMM dd')}
+                    {formatShortDate(stats.bestDate)}
                     {stats.daysBeforeBestPrice !== null && (
                       <span className="ml-1 text-green-600">
                         ({stats.daysBeforeBestPrice < 0 ? `${Math.abs(stats.daysBeforeBestPrice)}d before` : `+${stats.daysBeforeBestPrice}d`})
@@ -291,7 +324,7 @@ export default function PriceTrendChart45Day({
                   ₹{stats.searchDatePrice?.toLocaleString('en-IN') || 'N/A'}
                 </div>
                 <div className="text-xs text-muted-foreground mt-1">
-                  {format(parseISO(departDate), 'MMM dd')}
+                  {safeParseDepartDate()}
                 </div>
               </div>
               
@@ -326,7 +359,7 @@ export default function PriceTrendChart45Day({
                   <Info className="h-5 w-5 text-green-600 flex-shrink-0 mt-0.5" />
                   <div>
                     <div className="font-semibold text-green-900 dark:text-green-100">
-                      Save ₹{stats.potentialSavings.toLocaleString('en-IN')} by booking on {format(parseISO(stats.bestDate), 'MMM dd')}
+                      Save ₹{stats.potentialSavings.toLocaleString('en-IN')} by booking on {formatShortDate(stats.bestDate)}
                     </div>
                     <div className="text-sm text-green-700 dark:text-green-300 mt-1">
                       Click the green dot on the chart to book instantly
@@ -476,14 +509,14 @@ export default function PriceTrendChart45Day({
                 {selectedFlight.airlineLogo && (
                   <img 
                     src={selectedFlight.airlineLogo} 
-                    alt={selectedFlight.airline}
+                    alt={selectedFlight.airline || 'Airline'}
                     className="h-12 w-12 rounded-full"
                   />
                 )}
                 <div>
-                  <div className="font-bold text-xl">{selectedFlight.airline}</div>
+                  <div className="font-bold text-xl">{selectedFlight.airline || 'Unknown Airline'}</div>
                   <div className="text-sm text-muted-foreground">
-                    {selectedFlight.flightNumber} • {selectedFlight.aircraft}
+                    {selectedFlight.flightNumber || 'N/A'} • {selectedFlight.aircraft || 'N/A'}
                   </div>
                 </div>
               </div>
@@ -507,20 +540,20 @@ export default function PriceTrendChart45Day({
             {/* Flight Times */}
             <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
               <div className="flex-1">
-                <div className="text-3xl font-bold">{selectedFlight.departTime}</div>
-                <div className="text-sm text-muted-foreground mt-1">{selectedFlight.origin}</div>
+                <div className="text-3xl font-bold">{selectedFlight.departTime || 'N/A'}</div>
+                <div className="text-sm text-muted-foreground mt-1">{selectedFlight.origin || origin}</div>
                 <div className="text-xs text-muted-foreground">{formatShortDate(selectedDate)}</div>
               </div>
               
               <div className="flex-1 flex flex-col items-center px-4">
                 <Clock className="h-5 w-5 text-muted-foreground mb-1" />
-                <span className="text-sm font-medium">{selectedFlight.duration}</span>
+                <span className="text-sm font-medium">{selectedFlight.duration || 'N/A'}</span>
                 <div className="w-full h-px bg-border mt-2"></div>
               </div>
               
               <div className="flex-1 text-right">
-                <div className="text-3xl font-bold">{selectedFlight.arriveTime}</div>
-                <div className="text-sm text-muted-foreground mt-1">{selectedFlight.destination}</div>
+                <div className="text-3xl font-bold">{selectedFlight.arriveTime || 'N/A'}</div>
+                <div className="text-sm text-muted-foreground mt-1">{selectedFlight.destination || destination}</div>
                 {selectedFlight.arriveDate && selectedFlight.arriveDate !== selectedDate && (
                   <div className="text-xs text-muted-foreground">{formatShortDate(selectedFlight.arriveDate)}</div>
                 )}
@@ -577,16 +610,17 @@ export default function PriceTrendChart45Day({
               <div>
                 <div className="text-sm text-muted-foreground mb-1">Total Price</div>
                 <div className="text-4xl font-bold text-primary">
-                  ₹{selectedFlight.price.toLocaleString('en-IN')}
+                  ₹{selectedFlight.price?.toLocaleString('en-IN') || 'N/A'}
                 </div>
                 <div className="text-sm text-muted-foreground mt-1">
-                  per person {passengers > 1 && `× ${passengers} = ₹${(selectedFlight.price * passengers).toLocaleString('en-IN')}`}
+                  per person {passengers > 1 && selectedFlight.price && `× ${passengers} = ₹${(selectedFlight.price * passengers).toLocaleString('en-IN')}`}
                 </div>
               </div>
               <Button 
                 className="bg-green-600 hover:bg-green-700 h-14 px-8 text-lg" 
                 size="lg"
                 onClick={handleBookNow}
+                disabled={!selectedFlight.bookingUrl}
               >
                 Book Now
                 <ArrowRight className="ml-2 h-5 w-5" />
