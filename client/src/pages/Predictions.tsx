@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import AIPredictionPanel from "@/components/AIPredictionPanel";
-import { Brain, TrendingDown, Calendar, MapPin } from "lucide-react";
+import { Brain, TrendingDown, TrendingUp, Minus, MapPin } from "lucide-react";
 import PriceTrendChartInteractive from "@/components/PriceTrendChartInteractive";
 
 export default function Predictions() {
@@ -19,40 +19,67 @@ export default function Predictions() {
   ];
 
   const priceData = [
-    { date: 'Jan 1', price: 5200 },
-    { date: 'Jan 5', price: 4800 },
-    { date: 'Jan 10', price: 5500 },
-    { date: 'Jan 15', price: 4900 },
-    { date: 'Jan 20', price: 4500 },
-    { date: 'Jan 25', price: 4700 },
-    { date: 'Jan 30', price: 4400 },
+    { date: "Jan 1", price: 5200 },
+    { date: "Jan 5", price: 4800 },
+    { date: "Jan 10", price: 5500 },
+    { date: "Jan 15", price: 4900 },
+    { date: "Jan 20", price: 4500 },
+    { date: "Jan 25", price: 4700 },
+    { date: "Jan 30", price: 4400 },
   ];
 
   const predictedData = [
-    { date: 'Feb 1', price: 4200 },
-    { date: 'Feb 3', price: 4100 },
-    { date: 'Feb 5', price: 4300 },
+    { date: "Feb 1", price: 4200 },
+    { date: "Feb 3", price: 4100 },
+    { date: "Feb 5", price: 4300 },
   ];
+
+  const [prediction, setPrediction] = useState<{
+    recommendation: string;
+    confidence: number;
+    bestTimeToBook: string;
+    expectedSavings: number;
+    priceDirection: string;
+  } | null>(null);
+
+  const handleGetPrediction = () => {
+    // ✅ Prevent undefined/null route issues
+    if (!origin || !destination) return;
+
+    // Fake AI prediction logic
+    const sample = {
+      recommendation: "book_now",
+      confidence: 87,
+      bestTimeToBook: "Within next 48 hours",
+      expectedSavings: 850,
+      priceDirection: "down",
+    };
+    setPrediction(sample);
+  };
 
   return (
     <div className="min-h-screen bg-background">
+      {/* Header */}
       <div className="bg-gradient-to-br from-primary/10 via-background to-background border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-          <div className="text-center space-y-4">
-            <div className="flex items-center justify-center gap-2 mb-4">
-              <Brain className="h-8 w-8 text-primary animate-pulse" />
-            </div>
-            <h1 className="text-4xl md:text-5xl font-bold font-display bg-gradient-to-r from-foreground to-primary bg-clip-text text-transparent" data-testid="text-predictions-title">
-              AI-Powered Flight Price Predictions
-            </h1>
-            <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
-              Get intelligent insights on when to book your flights for the best prices
-            </p>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 text-center space-y-4">
+          <div className="flex items-center justify-center gap-2 mb-4">
+            <Brain className="h-8 w-8 text-primary animate-pulse" />
           </div>
+          <h1
+            className="text-4xl md:text-5xl font-bold font-display bg-gradient-to-r from-foreground to-primary bg-clip-text text-transparent"
+            data-testid="text-predictions-title"
+          >
+            AI-Powered Flight Price Predictions
+          </h1>
+          <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
+            Get intelligent insights on when to book your flights for the best prices
+          </p>
         </div>
       </div>
 
+      {/* Main section */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        {/* Prediction Input */}
         <Card className="p-6 mb-8">
           <h2 className="text-2xl font-bold font-display mb-6">Get Price Prediction</h2>
           <div className="grid md:grid-cols-3 gap-4 mb-4">
@@ -69,6 +96,7 @@ export default function Predictions() {
                 />
               </div>
             </div>
+
             <div className="space-y-2">
               <Label htmlFor="pred-destination">To</Label>
               <div className="relative">
@@ -82,8 +110,13 @@ export default function Predictions() {
                 />
               </div>
             </div>
+
             <div className="flex items-end">
-              <Button className="w-full" data-testid="button-get-prediction">
+              <Button
+                className="w-full"
+                onClick={handleGetPrediction}
+                data-testid="button-get-prediction"
+              >
                 <Brain className="mr-2 h-4 w-4" />
                 Get Prediction
               </Button>
@@ -91,41 +124,37 @@ export default function Predictions() {
           </div>
         </Card>
 
-        <div className="grid lg:grid-cols-2 gap-6 mb-12">
-          <AIPredictionPanel
-            route={`${origin} → ${destination}`}
-            prediction={{
-              recommendation: "book_now",
-              confidence: 87,
-              bestTimeToBook: "Within next 48 hours",
-              expectedSavings: 850,
-              priceDirection: "down"
-            }}
-          />
-          <PriceTrendChartInteractive 
-            route={`${origin} → ${destination}`}
-            data={priceData} 
-            predictedData={predictedData}
-          />
-        </div>
+        {/* AI Prediction Result */}
+        {prediction && (
+          <div className="grid lg:grid-cols-2 gap-6 mb-12">
+            <AIPredictionPanel
+              route={`${origin} → ${destination}`}
+              prediction={prediction}
+            />
+            <PriceTrendChartInteractive
+              route={`${origin} → ${destination}`}
+              data={priceData}
+              predictedData={predictedData}
+            />
+          </div>
+        )}
 
+        {/* Popular Routes */}
         <div className="space-y-6">
           <h2 className="text-2xl font-bold font-display">Popular Routes</h2>
           <div className="grid md:grid-cols-2 gap-4">
             {routes.map((route, idx) => (
-              <Card key={idx} className="p-6 hover-elevate transition-all duration-300">
+              <Card key={idx} className="p-6 hover:shadow-lg transition-all duration-300">
                 <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <h3 className="font-semibold text-lg" data-testid={`text-route-${idx}`}>
-                      {route.from} → {route.to}
-                    </h3>
-                  </div>
+                  <h3 className="font-semibold text-lg" data-testid={`text-route-${idx}`}>
+                    {route.from} → {route.to}
+                  </h3>
                   {route.trend === "down" ? (
                     <TrendingDown className="h-6 w-6 text-green-500" />
                   ) : route.trend === "up" ? (
-                    <Calendar className="h-6 w-6 text-orange-500" />
+                    <TrendingUp className="h-6 w-6 text-orange-500" />
                   ) : (
-                    <Calendar className="h-6 w-6 text-blue-500" />
+                    <Minus className="h-6 w-6 text-blue-500" />
                   )}
                 </div>
                 {route.savings > 0 && (
@@ -133,7 +162,16 @@ export default function Predictions() {
                     Potential savings: ₹{route.savings}
                   </div>
                 )}
-                <Button variant="outline" className="w-full" data-testid={`button-view-route-${idx}`}>
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => {
+                    setOrigin(route.from);
+                    setDestination(route.to);
+                    handleGetPrediction();
+                  }}
+                  data-testid={`button-view-route-${idx}`}
+                >
                   View Prediction
                 </Button>
               </Card>

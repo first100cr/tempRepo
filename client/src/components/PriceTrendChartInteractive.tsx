@@ -37,8 +37,8 @@ interface PriceTrendChartInteractiveProps {
 export default function PriceTrendChartInteractive({
   origin,
   destination,
-  departDate,
   passengers = 1,
+  departDate,
   onDateSelect
 }: PriceTrendChartInteractiveProps) {
   const [priceData, setPriceData] = useState<PriceDataPoint[]>([]);
