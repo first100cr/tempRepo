@@ -2,7 +2,7 @@
 // ✅ UPDATED VERSION — Includes price validation step before returning flights
 
 import Amadeus from 'amadeus';
-
+import type { FlightOffer as AmadeusFlightOffer } from 'amadeus';
 const hostname = process.env.AMADEUS_HOSTNAME || 'production';
 
 const amadeus = new Amadeus({
@@ -227,15 +227,26 @@ function getBaggageInfo(tp: any): string {
   if (b?.weight) return `${b.weight}${b.weightUnit || 'KG'}`;
   return '15 KG';
 }
-function generateAffiliateLink(offer: any): string {
+
+function generateAffiliateLink(offer: AmadeusFlightOffer): string {
   const publisherId = process.env.EXPEDIA_AFFILIATE_ID ?? 'YOUR_FALLBACK_PUBLISHER_ID';
   const base = 'https://www.expedia.com/Flights-Search';
-  const seg = offer.itineraries[0].segments[0];
-  const origin = seg.departure.iataCode;
-  const destination = offer.itineraries[0].segments.slice(-1)[0].arrival.iataCode;
-  const departureDate = seg.departure.at.split('T')[0];
-  return `${base}?trip=oneway&leg1=from:${origin},to:${destination},departure:${departureDate}TANYT&mode=search&adref=${publisherId}`;
+
+  const firstSegment = offer.itineraries?.[0]?.segments?.[0];
+  const lastSegment = offer.itineraries?.[0]?.segments?.slice(-1)[0];
+
+  if (!firstSegment || !lastSegment) {
+    console.warn('⚠️ Missing segment data in offer:', offer.id);
+    return base;
+  }
+
+  const origin = firstSegment.departure?.iataCode ?? '';
+  const destination = lastSegment.arrival?.iataCode ?? '';
+  const departureDate = (firstSegment.departure?.at ?? '').split('T')[0];
+
+  return `${base}?trip=oneway&leg1=from:${origin},to:${destination},departure:${departureDate}TANYT&passengers=adults:1&options=cabinclass:economy&mode=search&partnerref=${publisherId}`;
 }
+
 
 // -------------------------------
 // Airport search helpers
