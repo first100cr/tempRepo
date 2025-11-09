@@ -93,21 +93,31 @@ export let lastSearchDiagnostics: any = null;
 
 async function verifyFlightPriceAndAvailability(offer: any): Promise<{ price: number, seatsAvailable: boolean }> {
   try {
-    // Pass the offer object directly (no JSON.stringify)
-    const response = await amadeus.shopping.flightOffers.pricing.post(offer);
+    // Wrap offer as per Amadeus API spec for flight offers pricing
+    const pricingRequestPayload = {
+      data: {
+        type: "flight-offers-pricing",
+        flightOffers: [offer]
+      }
+    };
+
+    const response = await amadeus.shopping.flightOffers.pricing.post(pricingRequestPayload);
     const result = response.data;
 
     if (result) {
+      // Flight Offers Price API returns price and numberOfBookableSeats at top level here
       const flightPrice = Math.round(parseFloat(result.price?.grandTotal || result.price?.total || '0'));
       const seats = result.numberOfBookableSeats ?? 0;
       return { price: flightPrice, seatsAvailable: seats > 0 };
     }
     return { price: 0, seatsAvailable: false };
   } catch (error: any) {
-    console.warn('⚠️ Amadeus flight price verification failed:', error.message);
+    // Detailed error logging for troubleshooting
+    console.warn('⚠️ Amadeus flight price verification failed:', error.message, error.response?.body || error.response || error);
     return { price: 0, seatsAvailable: false };
   }
 }
+
 
 
 
