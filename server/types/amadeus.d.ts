@@ -6,19 +6,16 @@ declare module 'amadeus' {
     logLevel?: 'debug' | 'warn' | 'silent';
   }
 
-  // ==============================
-  // 📦 SEARCH PARAMETERS
-  // ==============================
   export interface FlightSearchParams {
     originLocationCode: string;
     destinationLocationCode: string;
     departureDate: string;
     returnDate?: string;
-    adults: number; // 🔧 changed from string → number
-    children?: number;
-    infants?: number;
+    adults: string;
+    children?: string;
+    infants?: string;
     travelClass?: 'ECONOMY' | 'PREMIUM_ECONOMY' | 'BUSINESS' | 'FIRST';
-    max?: number;
+    max?: string;
     currencyCode?: string;
     nonStop?: boolean;
   }
@@ -32,9 +29,6 @@ declare module 'amadeus' {
     };
   }
 
-  // ==============================
-  // 📊 GENERIC RESPONSE WRAPPER
-  // ==============================
   export interface AmadeusResponse<T = any> {
     data: T;
     meta?: {
@@ -50,9 +44,6 @@ declare module 'amadeus' {
     dictionaries?: any;
   }
 
-  // ==============================
-  // ✈️ FLIGHT OFFER STRUCTURE
-  // ==============================
   export interface FlightOffer {
     type: string;
     id: string;
@@ -97,19 +88,12 @@ declare module 'amadeus' {
     at: string;
   }
 
-  // ==============================
-  // 💰 PRICING STRUCTURES
-  // ==============================
   export interface Price {
     currency: string;
     total: string;
     base: string;
     fees?: Fee[];
     grandTotal: string;
-    taxes?: {
-      amount: string;
-      code: string;
-    }[];
   }
 
   export interface Fee {
@@ -143,9 +127,6 @@ declare module 'amadeus' {
     };
   }
 
-  // ==============================
-  // 🏙️ AIRPORT STRUCTURE
-  // ==============================
   export interface Airport {
     type: string;
     subType: string;
@@ -176,9 +157,6 @@ declare module 'amadeus' {
     };
   }
 
-  // ==============================
-  // ⚙️ MAIN AMADEUS CLASS
-  // ==============================
   export default class Amadeus {
     constructor(config: AmadeusConfig);
 
@@ -186,16 +164,9 @@ declare module 'amadeus' {
       flightOffersSearch: {
         get(params: FlightSearchParams): Promise<AmadeusResponse<FlightOffer[]>>;
       };
-
       flightOffers: {
         pricing: {
-          /**
-           * ✅ Correct way to validate/price flight offers
-           * Amadeus SDK doesn’t expose `flightOffersPrice` directly.
-           * Instead, use this route:
-           * `amadeus.shopping.flightOffers.pricing.post()`
-           */
-          post(body: { data: FlightOffer[] }): Promise<AmadeusResponse<FlightOffer[]>>;
+          post(body: string): Promise<AmadeusResponse<any>>;
         };
       };
     };
