@@ -93,8 +93,8 @@ export let lastSearchDiagnostics: any = null;
 
 async function verifyFlightPriceAndAvailability(offer: any): Promise<{ price: number, seatsAvailable: boolean }> {
   try {
-    // Serialize offer object to JSON string
-    const response = await amadeus.shopping.flightOffers.pricing.post(JSON.stringify(offer));
+    // Pass the offer object directly (no JSON.stringify)
+    const response = await amadeus.shopping.flightOffers.pricing.post(offer);
     const result = response.data;
 
     if (result) {
@@ -108,6 +108,7 @@ async function verifyFlightPriceAndAvailability(offer: any): Promise<{ price: nu
     return { price: 0, seatsAvailable: false };
   }
 }
+
 
 
 export async function searchFlights(params: FlightSearchParams): Promise<FlightOffer[]> {
