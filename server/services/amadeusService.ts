@@ -1,6 +1,3 @@
-// server/services/amadeusService.ts
-// FIXED VERSION - Addresses missing airlines issue
-
 import Amadeus from 'amadeus';
 
 const hostname = process.env.AMADEUS_HOSTNAME || 'production';
@@ -94,6 +91,23 @@ interface FlightOffer {
 // Global variable to store last search details for diagnostic endpoint
 export let lastSearchDiagnostics: any = null;
 
+async function verifyFlightPriceAndAvailability(offer: any): Promise<{ price: number, seatsAvailable: boolean }> {
+  try {
+    const response = await amadeus.shopping.flightPrice.post({ data: offer });
+    const result = response.data;
+
+    if (result && result.length > 0) {
+      const flightPrice = Math.round(parseFloat(result[0].price?.grandTotal || result[0].price?.total || '0'));
+      const seats = result[0].numberOfBookableSeats ?? 0;
+      return { price: flightPrice, seatsAvailable: seats > 0 };
+    }
+    return { price: 0, seatsAvailable: false };
+  } catch (error: any) {
+    console.warn('⚠️ Amadeus flight price verification failed:', error.message);
+    return { price: 0, seatsAvailable: false };
+  }
+}
+
 export async function searchFlights(params: FlightSearchParams): Promise<FlightOffer[]> {
   const searchStartTime = Date.now();
   
@@ -130,10 +144,10 @@ export async function searchFlights(params: FlightSearchParams): Promise<FlightO
     
     if (dictionaries?.carriers) {
       const carrierCodes = Object.keys(dictionaries.carriers);
-      console.log(`   📋 Carriers in Amadeus dict: ${carrierCodes.length} airlines`);
-      console.log(`   📋 Sample: ${carrierCodes.slice(0, 10).join(', ')}\n`);
+      console.log(`   📋 Carriers in Amadeus dict: ${carrierCodes.length} airlines`);
+      console.log(`   📋 Sample: ${carrierCodes.slice(0, 10).join(', ')}\n`);
     } else {
-      console.log('   ⚠️ No carrier dictionaries - will use fallback database\n');
+      console.log('   ⚠️ No carrier dictionaries - will use fallback database\n');
     }
 
     if (!rawFlightOffers || rawFlightOffers.length === 0) {
@@ -163,12 +177,13 @@ export async function searchFlights(params: FlightSearchParams): Promise<FlightO
     const airlinesList: string[] = [];
     airlinesMap.forEach((count, code) => {
       const name = getAirlineName(code, dictionaries);
-      console.log(`   ${code}: ${name} - ${count} flight${count > 1 ? 's' : ''}`);
+      console.log(`   ${code}: ${name} - ${count} flight${count > 1 ? 's' : ''}`);
       airlinesList.push(`${name} (${code})`);
     });
     console.log('');
 
     // TRANSFORM ALL FLIGHTS - ZERO FILTERING
+    
     console.log('🔄 TRANSFORMING ALL', rawFlightOffers.length, 'FLIGHTS (NO FILTERING)...\n');
     
     const transformedFlights: FlightOffer[] = [];
@@ -177,6 +192,21 @@ export async function searchFlights(params: FlightSearchParams): Promise<FlightO
     for (let i = 0; i < rawFlightOffers.length; i++) {
       const offer = rawFlightOffers[i];
       try {
+        // Verify price & availability before transformation
+        const { price, seatsAvailable } = await verifyFlightPriceAndAvailability(offer);
+
+        if (!seatsAvailable || price <= 0) {
+          transformErrors.push({
+            index: i + 1,
+            code: offer.itineraries?.[0]?.segments?.[0]?.carrierCode || 'UNKNOWN',
+            error: 'Flight not available or invalid price after verification'
+          });
+          continue;
+        }
+
+        // Override offer price with verified price
+        offer.price.grandTotal = price.toString();
+
         const transformed = transformFlight(offer, dictionaries);
         
         if (transformed) {
@@ -185,7 +215,7 @@ export async function searchFlights(params: FlightSearchParams): Promise<FlightO
           const code = offer.itineraries?.[0]?.segments?.[0]?.carrierCode || 'UNKNOWN';
           transformErrors.push({
             index: i + 1,
-            code: code,
+            code,
             error: 'Transform returned null'
           });
         }
@@ -193,7 +223,7 @@ export async function searchFlights(params: FlightSearchParams): Promise<FlightO
         const code = offer.itineraries?.[0]?.segments?.[0]?.carrierCode || 'UNKNOWN';
         transformErrors.push({
           index: i + 1,
-          code: code,
+          code,
           error: error.message || 'Unknown error'
         });
       }
@@ -204,7 +234,7 @@ export async function searchFlights(params: FlightSearchParams): Promise<FlightO
     if (transformErrors.length > 0) {
       console.log(`❌ TRANSFORM ERRORS (${transformErrors.length}):`);
       transformErrors.forEach(err => {
-        console.log(`   Flight ${err.index} (${err.code}): ${err.error}`);
+        console.log(`   Flight ${err.index} (${err.code}): ${err.error}`);
       });
       console.log('');
     }
@@ -231,12 +261,12 @@ export async function searchFlights(params: FlightSearchParams): Promise<FlightO
     });
 
     console.log('📊 FINAL RESULTS:');
-    console.log('   Total flights:', uniqueFlights.length);
-    console.log('   Unique airlines:', finalAirlinesMap.size);
+    console.log('   Total flights:', uniqueFlights.length);
+    console.log('   Unique airlines:', finalAirlinesMap.size);
     console.log('\n✈️ AIRLINES IN FINAL RESULT:');
     finalAirlinesMap.forEach((count, code) => {
       const name = getAirlineName(code, dictionaries);
-      console.log(`   ${code}: ${name} - ${count} flight${count > 1 ? 's' : ''}`);
+      console.log(`   ${code}: ${name} - ${count} flight${count > 1 ? 's' : ''}`);
     });
     console.log('');
 
@@ -281,14 +311,14 @@ export async function searchFlights(params: FlightSearchParams): Promise<FlightO
     // CRITICAL DIAGNOSTIC
     if (airlinesMap.size > 1 && finalAirlinesMap.size === 1) {
       console.log('🚨 BUG DETECTED: Airlines were lost during transformation!');
-      console.log('   Amadeus returned:', Array.from(airlinesMap.keys()).join(', '));
-      console.log('   Final result has:', Array.from(finalAirlinesMap.keys()).join(', '));
-      console.log('   Check transform errors above ^\n');
+      console.log('   Amadeus returned:', Array.from(airlinesMap.keys()).join(', '));
+      console.log('   Final result has:', Array.from(finalAirlinesMap.keys()).join(', '));
+      console.log('   Check transform errors above ^\n');
     } else if (airlinesMap.size === 1) {
       const onlyAirline = getAirlineName(Array.from(airlinesMap.keys())[0], dictionaries);
       console.log(`ℹ️ Amadeus only has ${onlyAirline} for ${origin}→${destination} on ${departDate}`);
-      console.log('   This is what Amadeus returned - not a code issue.');
-      console.log('   Try: Different dates or major routes (DEL→BOM)\n');
+      console.log('   This is what Amadeus returned - not a code issue.');
+      console.log('   Try: Different dates or major routes (DEL→BOM)\n');
     } else {
       console.log(`✅ SUCCESS: All ${finalAirlinesMap.size} airlines preserved!\n`);
     }
@@ -329,7 +359,7 @@ function transformFlight(offer: any, dictionaries?: any): FlightOffer | null {
       console.warn(`⚠️ Invalid price for ${airlineCode} flight: ${price}`);
       return null;
     }
-    
+
     // ✅ Get aircraft name (case-insensitive)
     const aircraftCode = firstSegment.aircraft?.code?.toUpperCase();
     const aircraftName = dictionaries?.aircraft?.[aircraftCode] 
@@ -433,10 +463,6 @@ function getBaggageInfo(travelerPricing: any): string {
   } catch { return '15 KG'; }
 }
 
-// function generateAffiliateLink(offerId: string, origin: string, destination: string): string {
-//   const affiliateId = process.env.AFFILIATE_ID || 'skailinker';
-//   return `https://www.skyscanner.co.in/transport/flights/${origin.toLowerCase()}/${destination.toLowerCase()}?associateid=${affiliateId}`;
-// }
 function generateAffiliateLink(offer: any, searchParams?: { passengers?: number }): string {
   const publisherId = process.env.EXPEDIA_AFFILIATE_ID ?? 'YOUR_FALLBACK_PUBLISHER_ID';
   const baseUrl = "https://www.expedia.com/Flights-Search";
@@ -460,7 +486,6 @@ function generateAffiliateLink(offer: any, searchParams?: { passengers?: number 
     `&options=cabinclass:${cabinClass}` +
     `&mode=search&adref=${publisherId}`;
 }
-
 
 export async function testAmadeusConnection(): Promise<boolean> {
   try {
