@@ -76,116 +76,17 @@ export function registerRoutes(app: Express): Server {
   // ========================================
   // FLIGHT SEARCH WITH REAL-TIME VALIDATION
   // ========================================
-  app.post("/api/flights/search", async (req: Request, res) => {
-    const startTime = Date.now();
-    
+  // ========================================
+// FLIGHT SEARCH (Now includes internal repricing)
+// ========================================
+ app.post("/api/flights/search", async (req: Request, res) => {
     try {
-      const { origin, destination, departDate, returnDate, passengers, tripType } = req.body;
-
-      if (!origin || !destination || !departDate) {
-        return res.status(400).json({ 
-          message: "Missing required fields: origin, destination, and departDate are required" 
-        });
-      }
-
-      console.log(`\n${'='.repeat(80)}`);
-      console.log(`🔍 NEW FLIGHT SEARCH REQUEST`);
-      console.log(`${'='.repeat(80)}`);
-      console.log(`Route: ${origin} → ${destination}`);
-      console.log(`Date: ${departDate}${returnDate ? ` (Return: ${returnDate})` : ''}`);
-      console.log(`Passengers: ${passengers || 1}`);
-      console.log(`${'='.repeat(80)}\n`);
-
-      let flightData;
-      let isMock = false;
-      let validationStats = null;
-
-      try {
-        const apiKey = process.env.AMADEUS_API_KEY || process.env.AMADEUS_CLIENT_ID;
-        const apiSecret = process.env.AMADEUS_API_SECRET || process.env.AMADEUS_CLIENT_SECRET;
-        
-        if (!apiKey || !apiSecret) {
-          console.error('❌ AMADEUS CREDENTIALS MISSING!');
-          return res.status(500).json({
-            success: false,
-            error: 'Amadeus API credentials not configured'
-          });
-        }
-
-        console.log('✅ Using Amadeus PRODUCTION API');
-        
-        flightData = await retryWithDelay(async () => {
-          const results = await searchFlights({
-            origin,
-            destination,
-            departDate,
-            returnDate,
-            passengers: passengers || 1
-          });
-          console.log(`✅ Amadeus returned ${results.length} live flights`);
-          return results;
-        });
-        
-        validationStats = {
-          total: flightData.length,
-          validated: flightData.filter((f: any) => f.isValidated).length,
-          unvalidated: flightData.filter((f: any) => !f.isValidated).length
-        };
-
-        const duration = Date.now() - startTime;
-        console.log(`✅ SEARCH COMPLETED: ${duration}ms - ${flightData.length} flights\n`);
-
-      } catch (apiError: any) {
-        console.error('❌ AMADEUS API ERROR:', apiError.message);
-        
-        if (apiError.response?.status === 401) {
-          return res.status(401).json({
-            success: false,
-            error: 'Authentication failed with Amadeus API'
-          });
-        }
-
-        if (apiError.response?.status === 404) {
-          return res.status(404).json({
-            success: false,
-            error: 'No flights found'
-          });
-        }
-        
-        return res.status(500).json({
-          success: false,
-          error: 'Failed to fetch flight data'
-        });
-      }
-
-      res.json({
-        success: true,
-        data: flightData,
-        mock: isMock,
-        searchParams: {
-          origin: origin.toUpperCase(),
-          destination: destination.toUpperCase(),
-          departDate,
-          returnDate,
-          passengers: passengers || 1,
-          tripType: tripType || 'round-trip'
-        },
-        meta: {
-          count: flightData.length,
-          duration: Date.now() - startTime,
-          validation: validationStats
-        }
-      });
-
+      const flights = await searchFlights(req.body);
+      res.json({ success: true, data: flights });
     } catch (error: any) {
-      console.error(`❌ SEARCH FAILED: ${error.message}`);
-      res.status(500).json({ 
-        message: error.message || "Failed to search flights"
-      });
+      res.status(500).json({ success: false, message: error.message });
     }
   });
-
-
 
 
 // ========================================

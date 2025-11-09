@@ -166,7 +166,8 @@ declare module 'amadeus' {
       };
       flightOffers: {
         pricing: {
-          post(body: string): Promise<AmadeusResponse<any>>;
+          // ✅ UPDATED HERE
+          post(body: string | Record<string, any>): Promise<AmadeusResponse<any>>;
         };
       };
     };

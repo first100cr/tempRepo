@@ -1,6 +1,3 @@
-// client/src/components/PriceTrendChart45Day.tsx
-// FIXED VERSION - Safe date parsing and null checks
-
 import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -34,6 +31,40 @@ interface PriceTrendChart45DayProps {
   onDateSelect?: (date: string, flightData: any) => void;
 }
 
+// === Formatting Helpers ===
+
+// Format ISO date as "09 Nov"
+const fmtDate = (dateString: string | undefined | null) => {
+  if (!dateString) return "Invalid date";
+  try {
+    const d = parseISO(dateString);
+    return isValid(d) ? format(d, "dd MMM") : dateString;
+  } catch {
+    return dateString;
+  }
+};
+
+// Format ISO date as "14:35"
+const fmtTime = (dateString: string | undefined | null) => {
+  if (!dateString) return "N/A";
+  try {
+    const d = parseISO(dateString);
+    return isValid(d) ? format(d, "HH:mm") : dateString;
+  } catch {
+    return dateString;
+  }
+};
+
+// Duration "PT2H55M" => "2h 55m"
+const formatDuration = (duration: string | undefined | null) => {
+  if (!duration) return "";
+  const match = duration.match(/PT(?:(\d+)H)?(?:(\d+)M)?/);
+  if (!match) return duration;
+  const hours = match[1] ? `${match[1]}h` : "";
+  const minutes = match[2] ? `${match[2]}m` : "";
+  return `${hours} ${minutes}`.trim();
+};
+
 export default function PriceTrendChart45Day({
   origin,
   destination,
@@ -55,55 +86,31 @@ export default function PriceTrendChart45Day({
   }, [origin, destination, departDate, passengers]);
 
   const fetchPriceCalendar = async () => {
-    console.log('Fetching 45-day price calendar...');
-    
     setLoading(true);
     setError(null);
     setSelectedFlight(null);
     setSelectedDate(null);
-    
     try {
       const url = '/api/flights/price-calendar-45day';
       const payload = { origin, destination, departDate, passengers };
-      
       const response = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
-
       const data = await response.json();
-
       if (!response.ok) {
         throw new Error(data.message || 'Failed to fetch price data');
       }
-
-      console.log('Price calendar loaded:', data.priceData?.length || 0, 'days');
-      
       setPriceData(data.priceData || []);
       setStats(data.stats);
-      
     } catch (err: any) {
-      console.error('Price calendar error:', err);
       setError(err.message || 'Failed to load price calendar');
     } finally {
       setLoading(false);
     }
   };
 
-  // ✅ FIX: Safe date formatting with validation
-  const formatFlightDate = (dateStr: string | undefined | null): string => {
-    if (!dateStr) return 'Invalid date';
-    try {
-      const date = parseISO(dateStr);
-      if (!isValid(date)) return dateStr;
-      return format(date, 'EEEE, MMMM dd, yyyy');
-    } catch {
-      return dateStr;
-    }
-  };
-
-  // ✅ FIX: Safe short date formatting
   const formatShortDate = (dateStr: string | undefined | null): string => {
     if (!dateStr) return 'Invalid date';
     try {
@@ -115,7 +122,6 @@ export default function PriceTrendChart45Day({
     }
   };
 
-  // ✅ FIX: Safe date parsing helper
   const safeParseDepartDate = (): string => {
     if (!departDate) return '';
     try {
@@ -128,26 +134,16 @@ export default function PriceTrendChart45Day({
   };
 
   const handleDataPointClick = (data: any) => {
-    console.log('Chart clicked:', data);
-    
     if (!data || !data.activePayload || data.activePayload.length === 0) {
       return;
     }
-    
     const clickedPoint = data.activePayload[0].payload;
-    console.log('Clicked point:', clickedPoint);
-    
     if (!clickedPoint.flightData) {
-      console.log('No flight data for:', clickedPoint.date);
       return;
     }
-    
-    console.log('Setting selected flight:', clickedPoint.flightData);
-    
     setSelectedFlight(clickedPoint.flightData);
     setSelectedDate(clickedPoint.date);
     onDateSelect?.(clickedPoint.date, clickedPoint.flightData);
-    
     setTimeout(() => {
       const card = document.getElementById('selected-flight-card');
       if (card) {
@@ -158,15 +154,11 @@ export default function PriceTrendChart45Day({
 
   const CustomDot = (props: any) => {
     const { cx, cy, payload, value } = props;
-    
     if (value === null || value === undefined) return null;
-    
     const isSelected = selectedFlight && selectedDate === payload.date;
     const isLowest = stats && value === stats.lowestPrice;
     const isSearchDate = payload.date === departDate;
-    
     const handleClick = () => {
-      console.log('Dot clicked:', payload.date, payload.price);
       if (payload.flightData) {
         setSelectedFlight(payload.flightData);
         setSelectedDate(payload.date);
@@ -178,7 +170,6 @@ export default function PriceTrendChart45Day({
         }, 100);
       }
     };
-    
     return (
       <g>
         <circle
@@ -207,23 +198,17 @@ export default function PriceTrendChart45Day({
 
   const CustomTooltip = ({ active, payload }: any) => {
     if (!active || !payload || !payload[0]) return null;
-
     const data = payload[0].payload;
-    
-    // ✅ FIX: Safe date parsing in tooltip
+    // Format tooltip date using short date style
     let formattedDate = data.date;
     try {
       const date = parseISO(data.date);
       if (isValid(date)) {
         formattedDate = format(date, 'EEE, MMM dd, yyyy');
       }
-    } catch {
-      // Keep original if parsing fails
-    }
-    
+    } catch {}
     const isSearchDate = data.date === departDate;
     const daysFromSearch = data.daysFromSearch || 0;
-    
     return (
       <div className="bg-popover border border-border rounded-lg p-3 shadow-lg">
         <div className="font-medium mb-1">{formattedDate}</div>
@@ -249,13 +234,11 @@ export default function PriceTrendChart45Day({
     );
   };
 
-  // ✅ FIX: Safe X-axis formatter
   const formatXAxis = (dateStr: string) => {
     if (!dateStr) return '';
     try {
       const date = parseISO(dateStr);
       if (!isValid(date)) return dateStr;
-      
       if (isToday(date)) return 'Today';
       if (isTomorrow(date)) return 'Tmrw';
       if (dateStr === departDate) return format(date, 'MMM dd') + ' *';
@@ -287,7 +270,6 @@ export default function PriceTrendChart45Day({
             </p>
           </div>
         </div>
-
         {stats && (
           <>
             <div className="flex items-center gap-2 mb-4">
@@ -298,7 +280,6 @@ export default function PriceTrendChart45Day({
                 3x Faster Loading
               </Badge>
             </div>
-            
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div className="bg-background/50 rounded-lg p-4">
                 <div className="text-xs text-muted-foreground mb-1">Best Price</div>
@@ -317,7 +298,6 @@ export default function PriceTrendChart45Day({
                   </div>
                 )}
               </div>
-              
               <div className="bg-background/50 rounded-lg p-4">
                 <div className="text-xs text-muted-foreground mb-1">Your Date</div>
                 <div className="text-2xl font-bold text-amber-600">
@@ -327,7 +307,6 @@ export default function PriceTrendChart45Day({
                   {safeParseDepartDate()}
                 </div>
               </div>
-              
               <div className="bg-background/50 rounded-lg p-4">
                 <div className="text-xs text-muted-foreground mb-1">Avg Price</div>
                 <div className="text-2xl font-bold">
@@ -335,7 +314,6 @@ export default function PriceTrendChart45Day({
                 </div>
                 <div className="text-xs text-muted-foreground mt-1">45-day avg</div>
               </div>
-              
               <div className="bg-background/50 rounded-lg p-4">
                 <div className="text-xs text-muted-foreground mb-1">Savings</div>
                 <div className="text-2xl font-bold text-primary">
@@ -352,7 +330,6 @@ export default function PriceTrendChart45Day({
                 </div>
               </div>
             </div>
-
             {stats.potentialSavings && stats.potentialSavings > 0 && stats.bestDate && (
               <div className="mt-4 p-4 bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-900 rounded-lg">
                 <div className="flex items-start gap-3">
@@ -415,7 +392,6 @@ export default function PriceTrendChart45Day({
               </Badge>
             </div>
           </div>
-
           <div className="h-[400px] w-full">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart 
@@ -463,7 +439,6 @@ export default function PriceTrendChart45Day({
               </AreaChart>
             </ResponsiveContainer>
           </div>
-
           <div className="mt-4 flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
             <div className="flex items-center gap-2">
               <div className="w-3 h-3 rounded-full bg-green-500"></div>
@@ -484,7 +459,7 @@ export default function PriceTrendChart45Day({
         </Card>
       )}
 
-      {/* ✅ ENHANCED: Full flight details card */}
+      {/* Selected Flight Details Card */}
       {selectedFlight && selectedDate && (
         <Card id="selected-flight-card" className="p-6 border-2 border-primary shadow-xl animate-in fade-in slide-in-from-top-4">
           <div className="flex items-center justify-between mb-6">
@@ -494,14 +469,13 @@ export default function PriceTrendChart45Day({
                 Selected Flight
               </h4>
               <p className="text-sm text-muted-foreground">
-                {formatFlightDate(selectedDate)}
+                {fmtDate(selectedDate)}
               </p>
             </div>
             <Button variant="ghost" size="sm" onClick={() => { setSelectedFlight(null); setSelectedDate(null); }}>
               <X className="h-4 w-4" />
             </Button>
           </div>
-
           <div className="space-y-6">
             {/* Airline Header */}
             <div className="flex items-center justify-between">
@@ -536,30 +510,26 @@ export default function PriceTrendChart45Day({
                 </Badge>
               )}
             </div>
-
             {/* Flight Times */}
             <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
               <div className="flex-1">
-                <div className="text-3xl font-bold">{selectedFlight.departTime || 'N/A'}</div>
-                <div className="text-sm text-muted-foreground mt-1">{selectedFlight.origin || origin}</div>
-                <div className="text-xs text-muted-foreground">{formatShortDate(selectedDate)}</div>
+                <div className="text-3xl font-bold">{fmtTime(selectedFlight.departTime)}</div>
+                <div className="text-sm text-muted-foreground">{selectedFlight.origin || origin}</div>
+                <div className="text-xs text-muted-foreground">{fmtDate(selectedDate)}</div>
               </div>
-              
               <div className="flex-1 flex flex-col items-center px-4">
                 <Clock className="h-5 w-5 text-muted-foreground mb-1" />
-                <span className="text-sm font-medium">{selectedFlight.duration || 'N/A'}</span>
+                <span className="text-sm font-medium">{formatDuration(selectedFlight.duration)}</span>
                 <div className="w-full h-px bg-border mt-2"></div>
               </div>
-              
               <div className="flex-1 text-right">
-                <div className="text-3xl font-bold">{selectedFlight.arriveTime || 'N/A'}</div>
+                <div className="text-3xl font-bold">{fmtTime(selectedFlight.arriveTime)}</div>
                 <div className="text-sm text-muted-foreground mt-1">{selectedFlight.destination || destination}</div>
                 {selectedFlight.arriveDate && selectedFlight.arriveDate !== selectedDate && (
-                  <div className="text-xs text-muted-foreground">{formatShortDate(selectedFlight.arriveDate)}</div>
+                  <div className="text-xs text-muted-foreground">{fmtDate(selectedFlight.arriveDate)}</div>
                 )}
               </div>
             </div>
-
             {/* Flight Details Grid */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {selectedFlight.cabinClass && (
@@ -571,7 +541,6 @@ export default function PriceTrendChart45Day({
                   </div>
                 </div>
               )}
-              
               {selectedFlight.availableSeats && (
                 <div className="flex items-start gap-2">
                   <MapPin className="h-4 w-4 text-muted-foreground mt-0.5" />
@@ -581,7 +550,6 @@ export default function PriceTrendChart45Day({
                   </div>
                 </div>
               )}
-              
               {selectedFlight.baggage && (
                 <div className="flex items-start gap-2">
                   <Luggage className="h-4 w-4 text-muted-foreground mt-0.5" />
@@ -591,7 +559,6 @@ export default function PriceTrendChart45Day({
                   </div>
                 </div>
               )}
-              
               {selectedFlight.stops !== undefined && (
                 <div className="flex items-start gap-2">
                   <Plane className="h-4 w-4 text-muted-foreground mt-0.5" />
@@ -604,7 +571,6 @@ export default function PriceTrendChart45Day({
                 </div>
               )}
             </div>
-
             {/* Price and Book Button */}
             <div className="flex items-center justify-between p-4 bg-primary/5 rounded-lg border border-primary/20">
               <div>
@@ -626,7 +592,6 @@ export default function PriceTrendChart45Day({
                 <ArrowRight className="ml-2 h-5 w-5" />
               </Button>
             </div>
-
             {/* Additional Info */}
             {selectedFlight.isRefundable !== undefined && (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
