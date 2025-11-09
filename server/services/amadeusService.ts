@@ -93,12 +93,13 @@ export let lastSearchDiagnostics: any = null;
 
 async function verifyFlightPriceAndAvailability(offer: any): Promise<{ price: number, seatsAvailable: boolean }> {
   try {
-    const response = await amadeus.shopping.flightPrice.post({ data: offer });
+    // Serialize offer object to JSON string
+    const response = await amadeus.shopping.flightOffers.pricing.post(JSON.stringify(offer));
     const result = response.data;
 
-    if (result && result.length > 0) {
-      const flightPrice = Math.round(parseFloat(result[0].price?.grandTotal || result[0].price?.total || '0'));
-      const seats = result[0].numberOfBookableSeats ?? 0;
+    if (result) {
+      const flightPrice = Math.round(parseFloat(result.price?.grandTotal || result.price?.total || '0'));
+      const seats = result.numberOfBookableSeats ?? 0;
       return { price: flightPrice, seatsAvailable: seats > 0 };
     }
     return { price: 0, seatsAvailable: false };
@@ -107,6 +108,7 @@ async function verifyFlightPriceAndAvailability(offer: any): Promise<{ price: nu
     return { price: 0, seatsAvailable: false };
   }
 }
+
 
 export async function searchFlights(params: FlightSearchParams): Promise<FlightOffer[]> {
   const searchStartTime = Date.now();
