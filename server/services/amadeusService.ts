@@ -31,8 +31,8 @@ export interface FlightResult {
 
 const HOSTNAME = (process.env.AMADEUS_HOSTNAME as "production" | "test") || "production";
 const DEFAULT_CURRENCY = process.env.DEFAULT_CURRENCY || "INR";
-const CONCURRENCY = Number(process.env.PRICE_CONCURRENCY || 6);
-const PRICE_TIMEOUT_MS = Number(process.env.PRICE_TIMEOUT_MS || 6000);
+const CONCURRENCY = Number(process.env.PRICE_CONCURRENCY || 8);
+const PRICE_TIMEOUT_MS = Number(process.env.PRICE_TIMEOUT_MS || 5000);
 
 console.log(`🔧 Amadeus Mode: ${HOSTNAME === "production" ? "🚀 PRODUCTION" : "🧪 TEST"}`);
 
