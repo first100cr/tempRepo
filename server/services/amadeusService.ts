@@ -76,7 +76,7 @@ function generateExpediaLink(offer: any, pax: number) {
   const to = segments[segments.length - 1].arrival.iataCode;
   const date = segments[0].departure.at.split("T")[0];
 
-  const airline = segments[0].carrierCode;            // Example: "AI"
+ //cnst airline = segments[0].carrierCode;            // Example: "AI"
   const nonstop = segments.length === 1;              // true / false
   const departureTime = segments[0].departure.at.split("T")[1].substring(0, 5); // "HH:mm"
 
@@ -96,8 +96,7 @@ function generateExpediaLink(offer: any, pax: number) {
   return (
     `https://www.expedia.com/Flights-Search?trip=oneway` +
     `&leg1=from:${from},to:${to},departure:${date}TANYT` +
-    `&passengers=adults:${pax}` +
-    `&airline=${airline}` +                                // Filter by airline
+    `&passengers=adults:${pax}` +                          
     (nonstop ? `&nonstop=yes&maxStops=0` : ``) +           // Filter based on stops → duration
     `&departureTime=${timeWindow}` +                       // Filter departure window
     `&cabinclass=economy` +                                // Optional: change if needed
