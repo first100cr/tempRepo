@@ -94,7 +94,7 @@ function generateExpediaLink(offer: any, pax: number) {
   const timeWindow = mapToTimeWindow(departureTime);
 
   return (
-    `https://www.expedia.com/Flights-Search?trip=oneway` +
+    `https://www.expedia.co.in/Flights-Search?trip=oneway` +
     `&leg1=from:${from},to:${to},departure:${date}TANYT` +
     `&passengers=adults:${pax}` +                          
     (nonstop ? `&nonstop=yes&maxStops=0` : ``) +           // Filter based on stops → duration

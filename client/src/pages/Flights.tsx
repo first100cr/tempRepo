@@ -1,6 +1,3 @@
-// client/src/pages/Flights.tsx
-// FINAL — Filters + Sorting + No Results State + Correct Response Handling
-
 import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import FlightSearchForm from "@/components/FlightSearchForm";
@@ -13,24 +10,24 @@ import airportHero from "@assets/generated_images/clouds.png";
 export default function Flights() {
   const [location] = useLocation();
 
-  // ✅ Base & Filtered Flights
+  // Base & Filtered Flights
   const [baseFlights, setBaseFlights] = useState<any[]>([]);
   const [flights, setFlights] = useState<any[]>([]);
 
-  // ✅ Search state
+  // Search state
   const [searchParams, setSearchParams] = useState<any>(null);
   const [loading, setLoading] = useState(false);
-  const [hasSearched, setHasSearched] = useState(false); // ✅ Needed for No Results UI
+  const [hasSearched, setHasSearched] = useState(false);
 
-  // ✅ Sorting
+  // Sorting option
   const [sortOption, setSortOption] = useState<"recommended" | "price" | "duration">("recommended");
 
-  // ✅ Dynamic Price Range
+  // Dynamic Price Range
   const [priceDomain, setPriceDomain] = useState({ min: 0, max: 20000 });
 
   const hasAutoSearched = useRef(false);
 
-  // ✅ Sorting Helper
+  // Sorting helper
   const sortFlights = (list: any[], option = sortOption) => {
     const sorted = [...list];
 
@@ -49,7 +46,7 @@ export default function Flights() {
     return sorted;
   };
 
-  // ✅ Filtering Logic (Matches FlightResult format)
+  // Filtering logic
   const applyFilters = (filters: {
     priceRange: [number, number];
     stops: string[];
@@ -57,12 +54,10 @@ export default function Flights() {
   }) => {
     let filtered = [...baseFlights];
 
-    // Price
     filtered = filtered.filter(
       (f) => f.price >= filters.priceRange[0] && f.price <= filters.priceRange[1]
     );
 
-    // Stops
     if (filters.stops.length > 0) {
       filtered = filtered.filter((f) => {
         const label =
@@ -73,7 +68,6 @@ export default function Flights() {
       });
     }
 
-    // Airline
     if (filters.airlines.length > 0) {
       filtered = filtered.filter((f) => filters.airlines.includes(f.airline));
     }
@@ -81,7 +75,7 @@ export default function Flights() {
     setFlights(sortFlights(filtered));
   };
 
-  // ✅ Perform backend search
+  // Perform backend search
   const performSearch = async (params: any) => {
     try {
       setLoading(true);
@@ -102,14 +96,13 @@ export default function Flights() {
       setFlights(sortFlights(list));
       setSearchParams(params);
       setLoading(false);
-
     } catch (err) {
       setLoading(false);
       setFlights([]); // show no results UI
     }
   };
 
-  // ✅ Trigger API search when returning from Home
+  // Trigger API search on autoSearch param
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get("autoSearch") === "true" && !hasAutoSearched.current) {
@@ -125,7 +118,7 @@ export default function Flights() {
     }
   }, []);
 
-  // ✅ Search Form Callbacks
+  // Search Form Callbacks
   const handleSearchStart = () => {
     setLoading(true);
     setHasSearched(true);
@@ -140,7 +133,7 @@ export default function Flights() {
     setHasSearched(true);
   };
 
-  // ✅ Recompute price range when flights change
+  // Recompute price range when flights change
   useEffect(() => {
     if (baseFlights.length === 0) return;
     const prices = baseFlights.map((f) => f.price);
@@ -156,7 +149,8 @@ export default function Flights() {
           <div className="absolute inset-0 bg-black/70"></div>
         </div>
         <div className="relative z-10 max-w-7xl mx-auto px-6 py-8">
-          <div className="bg-white/90 backdrop-blur rounded-2xl p-6 shadow-lg">
+          {/* Use same container styles */}
+           <div className="bg-white/95 dark:bg-gray-900/95 backdrop-blur-md rounded-2xl p-6 md:p-8 border border-white/30 shadow-2xl">
             <FlightSearchForm
               onSearchStart={handleSearchStart}
               onSearchComplete={handleSearchComplete}
@@ -172,7 +166,7 @@ export default function Flights() {
         </div>
       )}
 
-      {/* ✅ RESULTS */}
+      {/* RESULTS */}
       {!loading && flights.length > 0 && (
         <div id="results-section" className="max-w-7xl mx-auto px-6 py-8 grid lg:grid-cols-4 gap-8">
 
@@ -217,7 +211,7 @@ export default function Flights() {
         </div>
       )}
 
-      {/* ✅ NO RESULTS MESSAGE */}
+      {/* NO RESULTS MESSAGE */}
       {!loading && hasSearched && flights.length === 0 && (
         <div className="max-w-3xl mx-auto text-center py-20">
           <div className="text-6xl mb-4">😕</div>

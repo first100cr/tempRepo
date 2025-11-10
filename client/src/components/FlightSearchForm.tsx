@@ -1,6 +1,3 @@
-// client/src/components/FlightSearchForm.tsx
-// FINAL FIXED VERSION - With autocomplete and safe airport code extraction
-
 import { useState, useEffect, useRef } from "react";
 import { format } from "date-fns";
 import { Calendar as CalendarIcon, Plane, AlertCircle } from "lucide-react";
@@ -35,7 +32,6 @@ interface ValidationErrors {
   returnDate?: string;
 }
 
-// Popular Indian airports
 const INDIAN_AIRPORTS = [
   { code: "DEL", city: "Delhi", name: "Indira Gandhi International Airport" },
   { code: "BOM", city: "Mumbai", name: "Chhatrapati Shivaji Maharaj International Airport" },
@@ -93,13 +89,11 @@ export default function FlightSearchForm({
   const originDropdownRef = useRef<HTMLDivElement>(null);
   const destinationDropdownRef = useRef<HTMLDivElement>(null);
 
-  // ✅ SAFE AIRPORT CODE EXTRACTION
   const extractAirportCode = (input: string): string => {
     if (!input) return '';
     const trimmed = input.trim();
     if (!trimmed) return '';
     
-    // Handle "DEL - Delhi" format
     if (trimmed.includes('-')) {
       const parts = trimmed.split('-');
       if (parts.length > 0 && parts[0]) {
@@ -107,11 +101,9 @@ export default function FlightSearchForm({
       }
     }
     
-    // Handle plain "DEL" format
     return trimmed.toUpperCase();
   };
 
-  // Update form when initialValues change
   useEffect(() => {
     if (initialValues) {
       if (initialValues.origin) setOrigin(initialValues.origin);
@@ -123,7 +115,6 @@ export default function FlightSearchForm({
     }
   }, [initialValues]);
 
-  // Clear error when field is updated
   useEffect(() => {
     if (origin && errors.origin) {
       setErrors(prev => ({ ...prev, origin: undefined }));
@@ -148,7 +139,6 @@ export default function FlightSearchForm({
     }
   }, [returnDate]);
 
-  // Filter airports based on input
   const filterAirports = (input: string) => {
     if (!input || input.length < 1) return [];
     const searchTerm = input.toLowerCase();
@@ -160,7 +150,6 @@ export default function FlightSearchForm({
     ).slice(0, 8);
   };
 
-  // Handle origin input change
   const handleOriginChange = (value: string) => {
     setOrigin(value);
     const suggestions = filterAirports(value);
@@ -169,7 +158,6 @@ export default function FlightSearchForm({
     setOriginFocusedIndex(-1);
   };
 
-  // Handle destination input change
   const handleDestinationChange = (value: string) => {
     setDestination(value);
     const suggestions = filterAirports(value);
@@ -178,30 +166,25 @@ export default function FlightSearchForm({
     setDestFocusedIndex(-1);
   };
 
-  // Handle origin selection
   const handleOriginSelect = (airport: typeof INDIAN_AIRPORTS[0]) => {
     setOrigin(`${airport.code} - ${airport.city}`);
     setShowOriginDropdown(false);
     setOriginFocusedIndex(-1);
   };
 
-  // Handle destination selection
   const handleDestinationSelect = (airport: typeof INDIAN_AIRPORTS[0]) => {
     setDestination(`${airport.code} - ${airport.city}`);
     setShowDestinationDropdown(false);
     setDestFocusedIndex(-1);
   };
 
-  // Handle keyboard navigation for origin
   const handleOriginKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (!showOriginDropdown) return;
 
     switch (e.key) {
       case 'ArrowDown':
         e.preventDefault();
-        setOriginFocusedIndex(prev => 
-          prev < originSuggestions.length - 1 ? prev + 1 : prev
-        );
+        setOriginFocusedIndex(prev => prev < originSuggestions.length - 1 ? prev + 1 : prev);
         break;
       case 'ArrowUp':
         e.preventDefault();
@@ -220,16 +203,13 @@ export default function FlightSearchForm({
     }
   };
 
-  // Handle keyboard navigation for destination
   const handleDestinationKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (!showDestinationDropdown) return;
 
     switch (e.key) {
       case 'ArrowDown':
         e.preventDefault();
-        setDestFocusedIndex(prev => 
-          prev < destinationSuggestions.length - 1 ? prev + 1 : prev
-        );
+        setDestFocusedIndex(prev => prev < destinationSuggestions.length - 1 ? prev + 1 : prev);
         break;
       case 'ArrowUp':
         e.preventDefault();
@@ -248,7 +228,6 @@ export default function FlightSearchForm({
     }
   };
 
-  // Close dropdowns when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (
@@ -274,36 +253,30 @@ export default function FlightSearchForm({
   const validateForm = (): boolean => {
     const newErrors: ValidationErrors = {};
 
-    // Extract airport code from input using safe helper
     const originCode = extractAirportCode(origin);
     const destinationCode = extractAirportCode(destination);
 
-    // Validate origin
     if (!origin || origin.trim() === "") {
       newErrors.origin = "Please enter departure city or airport code";
     } else if (origin.trim().length < 2) {
       newErrors.origin = "Origin must be at least 2 characters";
     }
 
-    // Validate destination
     if (!destination || destination.trim() === "") {
       newErrors.destination = "Please enter arrival city or airport code";
     } else if (destination.trim().length < 2) {
       newErrors.destination = "Destination must be at least 2 characters";
     }
 
-    // Validate same origin and destination
     if (originCode && destinationCode && originCode === destinationCode) {
       newErrors.origin = "Origin and destination cannot be the same";
       newErrors.destination = "Origin and destination cannot be the same";
     }
 
-    // Validate departure date
     if (!departDate) {
       newErrors.departDate = "Please select a departure date";
     }
 
-    // Validate return date for round trip
     if (tripType === "round-trip") {
       if (!returnDate) {
         newErrors.returnDate = "Please select a return date for round trip";
@@ -320,7 +293,6 @@ export default function FlightSearchForm({
     e.preventDefault();
     setShowErrors(true);
 
-    // Validate form
     if (!validateForm()) {
       return;
     }
@@ -329,7 +301,6 @@ export default function FlightSearchForm({
     onSearchStart?.();
 
     try {
-      // Extract airport codes using the safe helper function
       const originCode = extractAirportCode(origin);
       const destinationCode = extractAirportCode(destination);
 
@@ -344,9 +315,7 @@ export default function FlightSearchForm({
 
       const response = await fetch("/api/flights/search", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(searchParams),
       });
 
@@ -361,8 +330,7 @@ export default function FlightSearchForm({
         searchParams,
         isMock: data.mock || false
       });
-      
-      // Clear errors on success
+
       setErrors({});
       setShowErrors(false);
     } catch (error: any) {
@@ -375,6 +343,7 @@ export default function FlightSearchForm({
 
   return (
     <form onSubmit={handleSearch} className="space-y-6">
+
       {/* Trip Type Toggle */}
       <div className="flex gap-2">
         <Button
@@ -420,15 +389,13 @@ export default function FlightSearchForm({
                 }
               }}
               className={cn(
-                "flex h-10 w-full rounded-md border-2 bg-background pl-10 pr-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                "flex h-10 w-full rounded-md border-2 bg-[#111827] border-[#1f2937] text-white placeholder:text-gray-400 pl-10 pr-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
                 showErrors && errors.origin
                   ? "border-red-500 focus-visible:ring-red-500"
                   : "border-border"
               )}
               autoComplete="off"
             />
-            
-            {/* Origin Dropdown */}
             {showOriginDropdown && originSuggestions.length > 0 && (
               <div
                 ref={originDropdownRef}
@@ -486,15 +453,13 @@ export default function FlightSearchForm({
                 }
               }}
               className={cn(
-                "flex h-10 w-full rounded-md border-2 bg-background pl-10 pr-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                "flex h-10 w-full rounded-md border-2 bg-[#111827] border-[#1f2937] text-white placeholder:text-gray-400 pl-10 pr-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
                 showErrors && errors.destination
                   ? "border-red-500 focus-visible:ring-red-500"
                   : "border-border"
               )}
               autoComplete="off"
             />
-            
-            {/* Destination Dropdown */}
             {showDestinationDropdown && destinationSuggestions.length > 0 && (
               <div
                 ref={destinationDropdownRef}
@@ -658,9 +623,7 @@ export default function FlightSearchForm({
             Searching...
           </>
         ) : (
-          <>
-            Search Flights →
-          </>
+          <>Search Flights →</>
         )}
       </Button>
     </form>

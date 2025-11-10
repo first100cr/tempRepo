@@ -114,7 +114,11 @@ export default function FlightResultsInline({
         <div>
           <h2 className="text-2xl font-bold">Available Flights</h2>
           <p className="text-sm text-muted-foreground mt-1">
-            {flights.length} results found
+            {flights.length} results found{" "}
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+            <span className="font-bold text-yellow-500">
+              Note: Real-time prices may vary and are often lower than those shown here.
+            </span>
           </p>
         </div>
       </div>
@@ -177,7 +181,7 @@ export default function FlightResultsInline({
               {/* Cabin + Seats */}
               <div className="text-xs text-muted-foreground flex items-center gap-2">
                 <MapPin className="h-3 w-3" />
-                {flight.cabinClass} • {flight.availableSeats || flight.numberOfBookableSeats || 9} seats available
+                {flight.cabinClass} • {flight.availableSeats || flight.numberOfBookableSeats || 9} seats available 
               </div>
             </div>
 
