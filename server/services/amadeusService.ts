@@ -80,7 +80,9 @@ function generateExpediaLink(offer: any, pax: number) {
     `https://www.expedia.com/Flights-Search?trip=oneway` +
     `&leg1=from:${from},to:${to},departure:${date}TANYT` +
     `&passengers=adults:${pax}` +
-    `&mode=search&adref=${adref}`
+    `&mode=search&adref=${adref}`+
+    `&sort=price_a`
+
   );
 }
 
