@@ -4,30 +4,74 @@ import { Slider } from "@/components/ui/slider";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { SlidersHorizontal, X } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+
+type PriceTuple = [number, number];
 
 interface FilterPanelProps {
   onFilterChange?: (filters: {
-    priceRange: [number, number];
+    priceRange: PriceTuple;
     stops: string[];
     airlines: string[];
   }) => void;
+
+  /** dynamic values coming from results */
+  minPrice?: number;          // default 0
+  maxPrice?: number;          // default 200000
+  airlineOptions?: string[];  // default to common list
+  stopOptions?: string[];     // default to ["Non-stop","1 stop","2+ stops"]
 }
 
-export default function FilterPanel({ onFilterChange }: FilterPanelProps) {
-  const [priceRange, setPriceRange] = useState<[number, number]>([0, 20000]);
+export default function FilterPanel({
+  onFilterChange,
+  minPrice = 0,
+  maxPrice = 200000,
+  airlineOptions,
+  stopOptions = ["Non-stop", "1 stop", "2+ stops"],
+}: FilterPanelProps) {
+  const airlines = useMemo(
+    () =>
+      (airlineOptions && airlineOptions.length > 0)
+        ? airlineOptions
+        : ["Air India", "IndiGo", "SpiceJet", "Vistara", "Akasa Air", "AirAsia India"],
+    [airlineOptions]
+  );
+
+  // ensure slider always spans the whole price domain for current results
+  const [priceRange, setPriceRange] = useState<PriceTuple>([
+    Math.max(0, Math.floor(minPrice)),
+    Math.max(Math.floor(minPrice), Math.ceil(maxPrice)),
+  ]);
   const [selectedStops, setSelectedStops] = useState<string[]>([]);
   const [selectedAirlines, setSelectedAirlines] = useState<string[]>([]);
 
-  const airlines = ["Air India", "IndiGo", "SpiceJet", "Vistara", "Go First"];
-  const stopOptions = ["Non-stop", "1 stop", "2+ stops"];
+  // when new results arrive, reset the slider range to the new domain
+  useEffect(() => {
+    const nextRange: PriceTuple = [
+      Math.max(0, Math.floor(minPrice)),
+      Math.max(Math.floor(minPrice), Math.ceil(maxPrice)),
+    ];
+    setPriceRange(nextRange);
+    // also emit change so the parent can re-apply with fresh bounds
+    onFilterChange?.({ priceRange: nextRange, stops: selectedStops, airlines: selectedAirlines });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [minPrice, maxPrice]);
+
+  const emit = (next: { priceRange?: PriceTuple; stops?: string[]; airlines?: string[] }) => {
+    const payload = {
+      priceRange: next.priceRange ?? priceRange,
+      stops: next.stops ?? selectedStops,
+      airlines: next.airlines ?? selectedAirlines,
+    };
+    onFilterChange?.(payload);
+  };
 
   const handleStopToggle = (stop: string) => {
     const updated = selectedStops.includes(stop)
       ? selectedStops.filter(s => s !== stop)
       : [...selectedStops, stop];
     setSelectedStops(updated);
-    onFilterChange?.({ priceRange, stops: updated, airlines: selectedAirlines });
+    emit({ stops: updated });
   };
 
   const handleAirlineToggle = (airline: string) => {
@@ -35,20 +79,24 @@ export default function FilterPanel({ onFilterChange }: FilterPanelProps) {
       ? selectedAirlines.filter(a => a !== airline)
       : [...selectedAirlines, airline];
     setSelectedAirlines(updated);
-    onFilterChange?.({ priceRange, stops: selectedStops, airlines: updated });
+    emit({ airlines: updated });
   };
 
   const handlePriceChange = (value: number[]) => {
-    const range: [number, number] = [value[0], value[1]];
+    const range: PriceTuple = [value[0], value[1]];
     setPriceRange(range);
-    onFilterChange?.({ priceRange: range, stops: selectedStops, airlines: selectedAirlines });
+    emit({ priceRange: range });
   };
 
   const clearFilters = () => {
-    setPriceRange([0, 20000]);
+    const resetRange: PriceTuple = [
+      Math.max(0, Math.floor(minPrice)),
+      Math.max(Math.floor(minPrice), Math.ceil(maxPrice)),
+    ];
+    setPriceRange(resetRange);
     setSelectedStops([]);
     setSelectedAirlines([]);
-    onFilterChange?.({ priceRange: [0, 20000], stops: [], airlines: [] });
+    onFilterChange?.({ priceRange: resetRange, stops: [], airlines: [] });
   };
 
   return (
@@ -71,7 +119,8 @@ export default function FilterPanel({ onFilterChange }: FilterPanelProps) {
             <Slider
               value={priceRange}
               onValueChange={handlePriceChange}
-              max={20000}
+              min={Math.max(0, Math.floor(minPrice))}
+              max={Math.max(Math.floor(minPrice), Math.ceil(maxPrice))}
               step={500}
               className="w-full"
               data-testid="slider-price-range"
