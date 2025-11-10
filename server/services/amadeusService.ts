@@ -70,21 +70,42 @@ function getAirline(code: string, dict?: Record<string, any>): string {
 }
 
 function generateExpediaLink(offer: any, pax: number) {
-  const seg = offer.itineraries[0].segments;
-  const from = seg[0].departure.iataCode;
-  const to = seg[seg.length - 1].arrival.iataCode;
-  const date = seg[0].departure.at.split("T")[0];
+  const segments = offer.itineraries[0].segments;
+
+  const from = segments[0].departure.iataCode;
+  const to = segments[segments.length - 1].arrival.iataCode;
+  const date = segments[0].departure.at.split("T")[0];
+
+  const airline = segments[0].carrierCode;            // Example: "AI"
+  const nonstop = segments.length === 1;              // true / false
+  const departureTime = segments[0].departure.at.split("T")[1].substring(0, 5); // "HH:mm"
+
   const adref = process.env.EXPEDIA_AFFILIATE_ID ?? "YOUR_FALLBACK_PUBLISHER_ID";
+
+  // Convert HH:mm → morning/afternoon/evening/night
+  function mapToTimeWindow(time: string) {
+    const hour = parseInt(time.split(":")[0], 10);
+    if (hour >= 5 && hour < 12) return "morning";
+    if (hour >= 12 && hour < 17) return "afternoon";
+    if (hour >= 17 && hour < 21) return "evening";
+    return "night";
+  }
+
+  const timeWindow = mapToTimeWindow(departureTime);
 
   return (
     `https://www.expedia.com/Flights-Search?trip=oneway` +
     `&leg1=from:${from},to:${to},departure:${date}TANYT` +
     `&passengers=adults:${pax}` +
-    `&mode=search&adref=${adref}`+
-    `&sort=price_a`
-
+    `&airline=${airline}` +                                // Filter by airline
+    (nonstop ? `&nonstop=yes&maxStops=0` : ``) +           // Filter based on stops → duration
+    `&departureTime=${timeWindow}` +                       // Filter departure window
+    `&cabinclass=economy` +                                // Optional: change if needed
+    `&sort=price_a` +                                      // Sort by lowest price
+    `&mode=search&adref=${adref}`
   );
 }
+
 
 // ✅ Correct repricing for production mode
 async function priceOffer(offer: any) {
