@@ -166,7 +166,7 @@ export default function Footer() {
               <div className="flex gap-2 w-full md:w-auto md:min-w-[300px]">
                 <Input 
                   type="email" 
-                  placeholder="Enter your WhatsApp number or email" 
+                  placeholder="Enter your WhatsApp number" 
                   className="flex-1"
                   data-testid="input-newsletter-email"
                 />
